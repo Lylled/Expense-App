@@ -1,10 +1,9 @@
 import TextRecognition from '@react-native-ml-kit/text-recognition';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import DocumentScanner, { ScanDocumentResponseStatus } from 'react-native-document-scanner-plugin';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -14,24 +13,9 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { parseReceipt, type ParsedReceipt } from '@/lib/parse-receipt';
 
-type Status = 'idle' | 'recognizing' | 'done' | 'error';
-
-/**
- * Some Android devices save the photo in the camera sensor's native (landscape)
- * orientation instead of rotating it to match the portrait-locked app, which then
- * makes the OCR read the receipt sideways. Detect that and rotate it back.
- */
-async function correctLandscapeCapture(photo: { uri: string; width: number; height: number }) {
-  if (photo.width <= photo.height) return photo.uri;
-
-  const rotated = await ImageManipulator.manipulate(photo.uri).rotate(-90).renderAsync();
-  const saved = await rotated.saveAsync({ compress: 1, format: SaveFormat.JPEG });
-  return saved.uri;
-}
+type Status = 'idle' | 'scanning' | 'recognizing' | 'done' | 'error';
 
 export default function OcrTestScreen() {
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
   const theme = useTheme();
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -40,11 +24,19 @@ export default function OcrTestScreen() {
   const [status, setStatus] = useState<Status>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
-  async function handleCapture() {
-    if (!cameraRef.current) return;
+  async function handleScan() {
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
-      const uri = await correctLandscapeCapture(photo);
+      setStatus('scanning');
+      // Opens the native scanner UI: it live-detects the receipt's edges and
+      // returns an already cropped + perspective-corrected (deskewed) photo,
+      // so OCR always sees a flat rectangle regardless of the capture angle.
+      const { scannedImages, status: scanStatus } = await DocumentScanner.scanDocument();
+      if (scanStatus !== ScanDocumentResponseStatus.Success || !scannedImages?.length) {
+        setStatus('idle');
+        return;
+      }
+
+      const uri = scannedImages[0];
       setPhotoUri(uri);
       setStatus('recognizing');
       const result = await TextRecognition.recognize(uri);
@@ -57,7 +49,7 @@ export default function OcrTestScreen() {
     }
   }
 
-  function handleRetry() {
+  function handleReset() {
     setPhotoUri(null);
     setRecognizedText('');
     setParsed(null);
@@ -78,45 +70,45 @@ export default function OcrTestScreen() {
           {closeButton}
           <ThemedText type="subtitle">OCR-testi</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
-            Tekstintunnistus käyttää Google ML Kitiä, joka toimii vain natiivissa
-            Android- tai iOS-kehitysversiossa, ei webissä.
+            Kuitinskannaus ja tekstintunnistus toimivat vain natiivissa Android- tai
+            iOS-kehitysversiossa, ei webissä.
           </ThemedText>
         </SafeAreaView>
       </ThemedView>
     );
   }
 
-  if (!permission) {
-    return <ThemedView style={styles.container} />;
-  }
+  return (
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        {closeButton}
 
-  if (!permission.granted) {
-    return (
-      <ThemedView style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          {closeButton}
-          <ThemedText type="subtitle">Kameran käyttöoikeus tarvitaan</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
-            Tarvitsemme luvan kameraan, jotta voimme kuvata kuitin OCR-testiä varten.
-          </ThemedText>
-          <Pressable
-            style={[styles.button, { backgroundColor: theme.backgroundElement }]}
-            onPress={requestPermission}>
-            <ThemedText type="smallBold">Myönnä lupa</ThemedText>
-          </Pressable>
-        </SafeAreaView>
-      </ThemedView>
-    );
-  }
+        {!photoUri && (
+          <>
+            <ThemedText type="subtitle">Kuittiskanneri</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
+              Avaa skanneri, aseta kuitti kehyksen sisään ja ota kuva. Skanneri rajaa ja
+              suoristaa kuvan automaattisesti ennen tekstintunnistusta.
+            </ThemedText>
+            <Pressable
+              style={[styles.button, { backgroundColor: theme.backgroundElement }]}
+              onPress={handleScan}
+              disabled={status === 'scanning' || status === 'recognizing'}>
+              <ThemedText type="smallBold">Skannaa kuitti</ThemedText>
+            </Pressable>
+            {status === 'scanning' && <ActivityIndicator />}
+            {status === 'error' && (
+              <ThemedText style={styles.centerText}>
+                Virhe tekstintunnistuksessa: {errorMessage}
+              </ThemedText>
+            )}
+          </>
+        )}
 
-  if (photoUri) {
-    return (
-      <ThemedView style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          {closeButton}
+        {photoUri && (
           <ScrollView contentContainerStyle={styles.resultScroll}>
             <ThemedText type="subtitle">Tunnistettu teksti</ThemedText>
-            <Image source={{ uri: photoUri }} style={styles.preview} contentFit="cover" />
+            <Image source={{ uri: photoUri }} style={styles.preview} contentFit="contain" />
             {status === 'recognizing' && <ActivityIndicator />}
             {status === 'error' && (
               <ThemedText style={styles.centerText}>
@@ -165,27 +157,14 @@ export default function OcrTestScreen() {
                 </ThemedText>
               </Collapsible>
             )}
+
             <Pressable
               style={[styles.button, { backgroundColor: theme.backgroundElement }]}
-              onPress={handleRetry}>
-              <ThemedText type="smallBold">Ota uusi kuva</ThemedText>
+              onPress={handleReset}>
+              <ThemedText type="smallBold">Skannaa uusi kuitti</ThemedText>
             </Pressable>
           </ScrollView>
-        </SafeAreaView>
-      </ThemedView>
-    );
-  }
-
-  return (
-    <ThemedView style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back" />
-      <SafeAreaView style={styles.captureBar} edges={['bottom']}>
-        <Pressable style={styles.captureButtonOuter} onPress={handleCapture}>
-          <ThemedView style={styles.captureButtonInner} />
-        </Pressable>
-      </SafeAreaView>
-      <SafeAreaView style={styles.topBar} edges={['top']}>
-        {closeButton}
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -215,39 +194,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.five,
-  },
-  camera: {
-    flex: 1,
-  },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: Spacing.three,
-  },
-  captureBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingBottom: Spacing.four,
-  },
-  captureButtonOuter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 4,
-    borderColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  captureButtonInner: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: '#ffffff',
   },
   resultScroll: {
     gap: Spacing.three,
