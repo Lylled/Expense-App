@@ -4,13 +4,15 @@ import { Image } from 'expo-image';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Collapsible } from '@/components/ui/collapsible';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { parseReceipt, type ParsedReceipt } from '@/lib/parse-receipt';
 
 type Status = 'idle' | 'recognizing' | 'done' | 'error';
 
@@ -34,6 +36,7 @@ export default function OcrTestScreen() {
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [recognizedText, setRecognizedText] = useState('');
+  const [parsed, setParsed] = useState<ParsedReceipt | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -46,6 +49,7 @@ export default function OcrTestScreen() {
       setStatus('recognizing');
       const result = await TextRecognition.recognize(uri);
       setRecognizedText(result.text);
+      setParsed(parseReceipt(result));
       setStatus('done');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -56,6 +60,7 @@ export default function OcrTestScreen() {
   function handleRetry() {
     setPhotoUri(null);
     setRecognizedText('');
+    setParsed(null);
     setErrorMessage('');
     setStatus('idle');
   }
@@ -118,12 +123,47 @@ export default function OcrTestScreen() {
                 Virhe tekstintunnistuksessa: {errorMessage}
               </ThemedText>
             )}
+            {status === 'done' && parsed && (
+              <ThemedView type="backgroundElement" style={styles.parsedBox}>
+                <View style={styles.fieldRow}>
+                  <ThemedText type="smallBold">Kauppa</ThemedText>
+                  <ThemedText type="small">{parsed.storeName ?? '(ei tunnistettu)'}</ThemedText>
+                </View>
+
+                <View style={styles.fieldRow}>
+                  <ThemedText type="smallBold">Päivämäärä</ThemedText>
+                  <ThemedText type="small">{parsed.date ?? '(ei tunnistettu)'}</ThemedText>
+                </View>
+
+                <ThemedText type="smallBold">Tuotteet</ThemedText>
+                {parsed.items.length === 0 ? (
+                  <ThemedText type="small">(ei tunnistettu tuotteita)</ThemedText>
+                ) : (
+                  parsed.items.map((item, index) => (
+                    <View key={`${item.name}-${index}`} style={styles.itemRow}>
+                      <ThemedText type="small" style={styles.itemName} numberOfLines={1}>
+                        {item.name}
+                      </ThemedText>
+                      <ThemedText type="small">{item.price.toFixed(2)} €</ThemedText>
+                    </View>
+                  ))
+                )}
+
+                <View style={styles.fieldRow}>
+                  <ThemedText type="smallBold">Yhteensä</ThemedText>
+                  <ThemedText type="small">
+                    {parsed.total !== null ? `${parsed.total.toFixed(2)} €` : '(ei tunnistettu)'}
+                  </ThemedText>
+                </View>
+              </ThemedView>
+            )}
+
             {status === 'done' && (
-              <ThemedView type="backgroundElement" style={styles.textBox}>
+              <Collapsible title="Raaka tunnistettu teksti">
                 <ThemedText type="code" selectable>
                   {recognizedText || '(tekstiä ei tunnistettu)'}
                 </ThemedText>
-              </ThemedView>
+              </Collapsible>
             )}
             <Pressable
               style={[styles.button, { backgroundColor: theme.backgroundElement }]}
@@ -219,9 +259,21 @@ const styles = StyleSheet.create({
     aspectRatio: 3 / 4,
     borderRadius: Spacing.three,
   },
-  textBox: {
+  parsedBox: {
     width: '100%',
     borderRadius: Spacing.three,
     padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  fieldRow: {
+    gap: Spacing.half,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  itemName: {
+    flex: 1,
   },
 });
