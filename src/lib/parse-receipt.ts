@@ -20,25 +20,39 @@ type PositionedLine = {
 // Matches a trailing price like "4,65", "1.49" or "4,65-" (discount) at the end of a row.
 const PRICE_PATTERN = /(\d{1,3}[.,]\d{2})(-)?\s*$/;
 const DATE_PATTERN = /\b\d{1,2}\.\d{1,2}\.\d{4}\b/;
-const TOTAL_LABEL_PATTERN = /YHTEENS[AÄ]/i;
+const TOTAL_LABEL = 'YHTEENSA';
+
+// A per-item K-Plussa loyalty discount printed as its own row right below the
+// product it applies to - fold it into that product's price instead of
+// dropping or double-counting it.
+const DISCOUNT_LABEL = 'PLUSSAETU';
 
 // Labels that mark a row as a receipt summary/metadata line rather than a purchased item.
+// Matched against text normalized by `normalizeForMatch`, so these only need to be
+// uppercase ASCII with no spaces/hyphens - diacritics and OCR word-splitting are
+// already stripped out before comparing.
 const SUMMARY_KEYWORDS = [
-  'YHTEENSA',
-  'YHTEENSÄ',
+  TOTAL_LABEL,
   'ALV',
   'VERO',
-  'VEROLLINEN',
-  'VEROTON',
   'KATEINEN',
   'TAKAISIN',
-  'KANTA-ASIAKAS',
+  'KANTAASIAKAS',
   'KORTTI',
-  'PLUSSA',
-  'RUOKAOSTOKSET',
-  'KAYTTOTAVARA',
-  'KÄYTTÖTAVARA',
+  'OSTO', // covers "Ruokaostokset", "Käyttötavaraostokset" and "kerryttävät ostot"
+  'TASAERA',
 ];
+
+// Uppercases, strips Finnish diacritics (ä/ö -> a/o) and removes whitespace/hyphens,
+// so keyword matching survives both OCR word-splitting ("Käyttötavar aostokset")
+// and diacritic rendering differences ("KATEINEN" vs "KÄTEINEN").
+function normalizeForMatch(text: string): string {
+  return text
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\s-]+/g, '');
+}
 
 function collectLines(result: TextRecognitionResult): PositionedLine[] {
   const lines: PositionedLine[] = [];
@@ -110,8 +124,12 @@ function extractItem(text: string): ReceiptItem | null {
 }
 
 function isSummaryRow(text: string): boolean {
-  const upper = text.toUpperCase();
-  return SUMMARY_KEYWORDS.some((keyword) => upper.includes(keyword));
+  // VAT-rate breakdown rows (e.g. "2 14,00% 13,28 1,87 15,15") don't contain
+  // the "ALV" label themselves, only a percentage - catch those directly.
+  if (text.includes('%')) return true;
+
+  const normalized = normalizeForMatch(text);
+  return SUMMARY_KEYWORDS.some((keyword) => normalized.includes(keyword));
 }
 
 export function parseReceipt(result: TextRecognitionResult): ParsedReceipt {
@@ -121,14 +139,22 @@ export function parseReceipt(result: TextRecognitionResult): ParsedReceipt {
   const dateMatch = rowTexts.map((text) => text.match(DATE_PATTERN)).find(Boolean);
   const date = dateMatch ? dateMatch[0] : null;
 
-  const totalRowText = rowTexts.find((text) => TOTAL_LABEL_PATTERN.test(text));
+  const totalRowText = rowTexts.find((text) => normalizeForMatch(text).includes(TOTAL_LABEL));
   const total = totalRowText ? (extractItem(totalRowText)?.price ?? null) : null;
 
   const items: ReceiptItem[] = [];
   for (const text of rowTexts) {
-    if (isSummaryRow(text)) continue;
     const item = extractItem(text);
-    if (item) items.push(item);
+    if (!item) continue;
+
+    if (normalizeForMatch(item.name) === DISCOUNT_LABEL) {
+      const previousItem = items[items.length - 1];
+      if (previousItem) previousItem.price = Math.round((previousItem.price + item.price) * 100) / 100;
+      continue;
+    }
+
+    if (isSummaryRow(text)) continue;
+    items.push(item);
   }
 
   return {
