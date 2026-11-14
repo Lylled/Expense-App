@@ -18,10 +18,6 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ],
       "package": "com.anonymous.kuittisovellus"
     },
     "web": {
@@ -40,7 +36,7 @@
       ],
       "expo-sqlite",
       [
-        "expo-camera",
+        "react-native-document-scanner-plugin",
         {
           "cameraPermission": "Sovellus käyttää kameraa kuittien kuvaamiseen"
         }
