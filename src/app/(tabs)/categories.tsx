@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CategoryActionMenu } from '@/components/category-action-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -61,24 +62,12 @@ function CategoryRow({
     );
   }
 
-  function openActionMenu() {
-    Alert.alert(category.name, undefined, [
-      { text: 'Muokkaa', onPress: onStartEdit },
-      { text: 'Poista', style: 'destructive', onPress: onDelete },
-      { text: 'Peruuta', style: 'cancel' },
-    ]);
-  }
-
   return (
     <View style={[styles.categoryRow, isSubcategory && styles.subcategoryRow]}>
       <ThemedText type={isSubcategory ? 'small' : 'smallBold'} style={styles.categoryRowName}>
         {category.name}
       </ThemedText>
-      <Pressable onPress={openActionMenu} hitSlop={Spacing.two} style={styles.menuButton}>
-        <ThemedText type="smallBold" style={styles.menuDots}>
-          ⋯
-        </ThemedText>
-      </Pressable>
+      <CategoryActionMenu label={category.name} onEdit={onStartEdit} onDelete={onDelete} />
     </View>
   );
 }
@@ -374,11 +363,5 @@ const styles = StyleSheet.create({
   },
   categoryRowName: {
     flex: 1,
-  },
-  menuButton: {
-    paddingHorizontal: Spacing.two,
-  },
-  menuDots: {
-    fontSize: 20,
   },
 });
