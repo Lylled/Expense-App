@@ -37,6 +37,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder="Sähköposti"
+            placeholderTextColor="#8A8A8E"
             autoCapitalize="none"
             autoComplete="email"
             keyboardType="email-address"
@@ -46,6 +47,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder="Salasana"
+            placeholderTextColor="#8A8A8E"
             autoCapitalize="none"
             autoComplete="password"
             secureTextEntry
@@ -113,6 +115,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     fontSize: 16,
     backgroundColor: '#ffffff',
+    color: '#000000',
   },
   button: {
     backgroundColor: '#208AEF',
