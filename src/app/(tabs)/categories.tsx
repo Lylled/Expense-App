@@ -61,19 +61,22 @@ function CategoryRow({
     );
   }
 
+  function openActionMenu() {
+    Alert.alert(category.name, undefined, [
+      { text: 'Muokkaa', onPress: onStartEdit },
+      { text: 'Poista', style: 'destructive', onPress: onDelete },
+      { text: 'Peruuta', style: 'cancel' },
+    ]);
+  }
+
   return (
     <View style={[styles.categoryRow, isSubcategory && styles.subcategoryRow]}>
       <ThemedText type={isSubcategory ? 'small' : 'smallBold'} style={styles.categoryRowName}>
         {category.name}
       </ThemedText>
-      <Pressable onPress={onStartEdit}>
-        <ThemedText type="small" style={styles.editText}>
-          Muokkaa
-        </ThemedText>
-      </Pressable>
-      <Pressable onPress={onDelete}>
-        <ThemedText type="small" style={styles.dangerText}>
-          Poista
+      <Pressable onPress={openActionMenu} hitSlop={Spacing.two} style={styles.menuButton}>
+        <ThemedText type="smallBold" style={styles.menuDots}>
+          ⋯
         </ThemedText>
       </Pressable>
     </View>
@@ -169,10 +172,27 @@ export default function CategoriesScreen() {
     fetchCategories();
   }
 
-  function confirmDelete(id: string, name: string) {
+  function confirmDelete(id: string, name: string, childCount: number) {
+    Alert.alert('Poista luokka', `Haluatko varmasti poistaa luokan "${name}"?`, [
+      { text: 'Peruuta', style: 'cancel' },
+      {
+        text: 'Poista',
+        style: 'destructive',
+        onPress: () => {
+          if (childCount > 0) {
+            confirmDeleteWithChildren(id, name);
+          } else {
+            deleteCategory(id);
+          }
+        },
+      },
+    ]);
+  }
+
+  function confirmDeleteWithChildren(id: string, name: string) {
     Alert.alert(
-      'Poista luokka',
-      `Haluatko varmasti poistaa luokan "${name}"? Tämä poistaa myös sen sisällön.`,
+      'Alaluokat poistuvat myös',
+      `Luokan "${name}" poistaminen poistaa myös kaikki sen alaluokat. Oletko varma?`,
       [
         { text: 'Peruuta', style: 'cancel' },
         { text: 'Poista', style: 'destructive', onPress: () => deleteCategory(id) },
@@ -242,7 +262,7 @@ export default function CategoriesScreen() {
                   onStartEdit={() => startEditing(item.id, item.name)}
                   onSaveEdit={saveEditing}
                   onCancelEdit={cancelEditing}
-                  onDelete={() => confirmDelete(item.id, item.name)}
+                  onDelete={() => confirmDelete(item.id, item.name, item.children.length)}
                 />
 
                 {item.children.map((child) => (
@@ -256,7 +276,7 @@ export default function CategoriesScreen() {
                     onStartEdit={() => startEditing(child.id, child.name)}
                     onSaveEdit={saveEditing}
                     onCancelEdit={cancelEditing}
-                    onDelete={() => confirmDelete(child.id, child.name)}
+                    onDelete={() => confirmDelete(child.id, child.name, 0)}
                   />
                 ))}
 
@@ -355,10 +375,10 @@ const styles = StyleSheet.create({
   categoryRowName: {
     flex: 1,
   },
-  editText: {
-    color: '#208AEF',
+  menuButton: {
+    paddingHorizontal: Spacing.two,
   },
-  dangerText: {
-    color: '#D32F2F',
+  menuDots: {
+    fontSize: 20,
   },
 });
