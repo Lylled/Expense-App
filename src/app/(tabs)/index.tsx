@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
 
 function getDevMenuHint() {
   if (Platform.OS === 'web') {
@@ -30,6 +31,8 @@ function getDevMenuHint() {
 }
 
 export default function HomeScreen() {
+  const { session, signOut } = useAuth();
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -63,6 +66,13 @@ export default function HomeScreen() {
             </ThemedView>
           </Pressable>
         </Link>
+
+        <ThemedText type="small" themeColor="textSecondary">
+          Kirjautuneena: {session?.user.email}
+        </ThemedText>
+        <Pressable onPress={signOut}>
+          <ThemedText type="linkPrimary">Kirjaudu ulos</ThemedText>
+        </Pressable>
 
         {Platform.OS === 'web' && <WebBadge />}
       </SafeAreaView>
