@@ -4,9 +4,11 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { AuthButton } from '@/components/auth/auth-button';
 import { AuthForm } from '@/components/auth/auth-form';
+import { AuthPasswordField } from '@/components/auth/auth-password-field';
 import { AuthScreen } from '@/components/auth/auth-screen';
 import { AuthTextField } from '@/components/auth/auth-text-field';
 import { ThemedText } from '@/components/themed-text';
+import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { translateAuthError } from '@/lib/auth-errors';
 
@@ -69,19 +71,20 @@ export default function RegisterScreen() {
           value={email}
           onChangeText={setEmail}
         />
-        <AuthTextField
-          placeholder="Salasana (vähintään 6 merkkiä)"
+        <AuthPasswordField
+          placeholder="Salasana"
           autoCapitalize="none"
           autoComplete="new-password"
-          secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
-        <AuthTextField
+        <ThemedText type="small" themeColor="textSecondary" style={styles.hintText}>
+          Vähintään 6 merkkiä
+        </ThemedText>
+        <AuthPasswordField
           placeholder="Vahvista salasana"
           autoCapitalize="none"
           autoComplete="new-password"
-          secureTextEntry
           value={confirmPassword}
           onChangeText={setConfirmPassword}
         />
@@ -112,5 +115,8 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   centerText: {
     textAlign: 'center',
+  },
+  hintText: {
+    marginTop: -Spacing.two,
   },
 });
