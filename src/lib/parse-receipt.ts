@@ -17,8 +17,10 @@ type PositionedLine = {
   frame: Frame;
 };
 
-// Matches a trailing price like "4,65", "1.49" or "4,65-" (discount) at the end of a row.
-const PRICE_PATTERN = /(\d{1,3}[.,]\d{2})(-)?\s*$/;
+// Matches a trailing price like "4,65", "1.49" or "4,65-" (discount) at the end of
+// a row, optionally followed by a single lone digit (some receipts print a one-digit
+// VAT-class column right after the price, e.g. IKEA's "3,99 0").
+const PRICE_PATTERN = /(\d{1,3}[.,]\d{2})(-)?(?:\s+\d)?\s*$/;
 const DATE_PATTERN = /\b\d{1,2}\.\d{1,2}\.\d{4}\b/;
 const TOTAL_LABEL = 'YHTEENSA';
 
@@ -42,6 +44,9 @@ const SUMMARY_KEYWORDS = [
   'OSTO', // covers "Ruokaostokset", "Käyttötavaraostokset" and "kerryttävät ostot"
   'KERRYTTAVAT', // backs up 'OSTO' when OCR misreads "ostot" as "0stot"
   'TASAERA',
+  'SUMMA', // IKEA-style subtotal label (no "YHTEENSÄ" on these receipts at all)
+  'PYORISTYS', // cash-rounding adjustment line
+  'TUOTTEET', // "Tuotteet: 2" item-count line
 ];
 
 // Uppercases, strips Finnish diacritics (ä/ö -> a/o) and removes whitespace/hyphens,
@@ -140,7 +145,11 @@ export function parseReceipt(result: TextRecognitionResult): ParsedReceipt {
   const dateMatch = rowTexts.map((text) => text.match(DATE_PATTERN)).find(Boolean);
   const date = dateMatch ? dateMatch[0] : null;
 
-  const totalRowText = rowTexts.find((text) => normalizeForMatch(text).includes(TOTAL_LABEL));
+  // Some receipts (e.g. IKEA) never print "YHTEENSÄ" at all - their subtotal
+  // label "Summa" is the closest thing to a total they have.
+  const totalRowText =
+    rowTexts.find((text) => normalizeForMatch(text).includes(TOTAL_LABEL)) ??
+    rowTexts.find((text) => normalizeForMatch(text).includes('SUMMA'));
   const total = totalRowText ? (extractItem(totalRowText)?.price ?? null) : null;
 
   const items: ReceiptItem[] = [];
