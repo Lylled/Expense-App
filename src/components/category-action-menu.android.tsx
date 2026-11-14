@@ -1,4 +1,4 @@
-import { DropdownMenu, DropdownMenuItem } from '@expo/ui/jetpack-compose';
+import { DropdownMenu, DropdownMenuItem, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
@@ -34,14 +34,18 @@ export function CategoryActionMenu({ onEdit, onDelete }: CategoryActionMenuProps
             setIsOpen(false);
             onEdit();
           }}>
-          <DropdownMenuItem.Text>Muokkaa</DropdownMenuItem.Text>
+          <DropdownMenuItem.Text>
+            <ComposeText>Muokkaa</ComposeText>
+          </DropdownMenuItem.Text>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
             setIsOpen(false);
             onDelete();
           }}>
-          <DropdownMenuItem.Text>Poista</DropdownMenuItem.Text>
+          <DropdownMenuItem.Text>
+            <ComposeText>Poista</ComposeText>
+          </DropdownMenuItem.Text>
         </DropdownMenuItem>
       </DropdownMenu.Items>
     </DropdownMenu>
