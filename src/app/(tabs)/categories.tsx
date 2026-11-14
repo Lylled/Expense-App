@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,6 +16,69 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { groupByParent, type Category } from '@/lib/categories';
 import { supabase } from '@/lib/supabase';
+
+type CategoryRowProps = {
+  category: Category;
+  isSubcategory: boolean;
+  isEditing: boolean;
+  editingName: string;
+  onChangeEditingName: (name: string) => void;
+  onStartEdit: () => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onDelete: () => void;
+};
+
+function CategoryRow({
+  category,
+  isSubcategory,
+  isEditing,
+  editingName,
+  onChangeEditingName,
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
+  onDelete,
+}: CategoryRowProps) {
+  if (isEditing) {
+    return (
+      <View style={styles.addRow}>
+        <TextInput
+          style={styles.input}
+          value={editingName}
+          onChangeText={onChangeEditingName}
+          autoFocus
+        />
+        <Pressable style={styles.addButton} onPress={onSaveEdit}>
+          <ThemedText type="smallBold" style={styles.addButtonText}>
+            Tallenna
+          </ThemedText>
+        </Pressable>
+        <Pressable onPress={onCancelEdit}>
+          <ThemedText type="small">Peruuta</ThemedText>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.categoryRow, isSubcategory && styles.subcategoryRow]}>
+      <ThemedText type={isSubcategory ? 'small' : 'smallBold'} style={styles.categoryRowName}>
+        {category.name}
+      </ThemedText>
+      <Pressable onPress={onStartEdit}>
+        <ThemedText type="small" style={styles.editText}>
+          Muokkaa
+        </ThemedText>
+      </Pressable>
+      <Pressable onPress={onDelete}>
+        <ThemedText type="small" style={styles.dangerText}>
+          Poista
+        </ThemedText>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function CategoriesScreen() {
   const { session } = useAuth();
@@ -19,6 +90,9 @@ export default function CategoriesScreen() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [subcategoryParentId, setSubcategoryParentId] = useState<string | null>(null);
   const [newSubcategoryName, setNewSubcategoryName] = useState('');
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   useEffect(() => {
     fetchCategories();
@@ -69,6 +143,52 @@ export default function CategoriesScreen() {
     fetchCategories();
   }
 
+  function startEditing(id: string, name: string) {
+    setEditingId(id);
+    setEditingName(name);
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setEditingName('');
+  }
+
+  async function saveEditing() {
+    const name = editingName.trim();
+    if (!editingId || !name) {
+      cancelEditing();
+      return;
+    }
+
+    const { error } = await supabase.from('categories').update({ name }).eq('id', editingId);
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    cancelEditing();
+    fetchCategories();
+  }
+
+  function confirmDelete(id: string, name: string) {
+    Alert.alert(
+      'Poista luokka',
+      `Haluatko varmasti poistaa luokan "${name}"? Tämä poistaa myös sen sisällön.`,
+      [
+        { text: 'Peruuta', style: 'cancel' },
+        { text: 'Poista', style: 'destructive', onPress: () => deleteCategory(id) },
+      ]
+    );
+  }
+
+  async function deleteCategory(id: string) {
+    const { error } = await supabase.from('categories').delete().eq('id', id);
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    fetchCategories();
+  }
+
   const grouped = groupByParent(categories);
 
   return (
@@ -113,12 +233,31 @@ export default function CategoriesScreen() {
             }
             renderItem={({ item }) => (
               <ThemedView type="backgroundElement" style={styles.categoryCard}>
-                <ThemedText type="smallBold">{item.name}</ThemedText>
+                <CategoryRow
+                  category={item}
+                  isSubcategory={false}
+                  isEditing={editingId === item.id}
+                  editingName={editingName}
+                  onChangeEditingName={setEditingName}
+                  onStartEdit={() => startEditing(item.id, item.name)}
+                  onSaveEdit={saveEditing}
+                  onCancelEdit={cancelEditing}
+                  onDelete={() => confirmDelete(item.id, item.name)}
+                />
 
                 {item.children.map((child) => (
-                  <ThemedText key={child.id} type="small" style={styles.subcategoryText}>
-                    {child.name}
-                  </ThemedText>
+                  <CategoryRow
+                    key={child.id}
+                    category={child}
+                    isSubcategory
+                    isEditing={editingId === child.id}
+                    editingName={editingName}
+                    onChangeEditingName={setEditingName}
+                    onStartEdit={() => startEditing(child.id, child.name)}
+                    onSaveEdit={saveEditing}
+                    onCancelEdit={cancelEditing}
+                    onDelete={() => confirmDelete(child.id, child.name)}
+                  />
                 ))}
 
                 {subcategoryParentId === item.id ? (
@@ -174,6 +313,7 @@ const styles = StyleSheet.create({
   },
   addRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.two,
   },
   input: {
@@ -188,6 +328,7 @@ const styles = StyleSheet.create({
   addButton: {
     backgroundColor: '#208AEF',
     paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
     justifyContent: 'center',
     borderRadius: Spacing.two,
   },
@@ -203,7 +344,21 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     gap: Spacing.two,
   },
-  subcategoryText: {
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  subcategoryRow: {
     paddingLeft: Spacing.three,
+  },
+  categoryRowName: {
+    flex: 1,
+  },
+  editText: {
+    color: '#208AEF',
+  },
+  dangerText: {
+    color: '#D32F2F',
   },
 });
