@@ -40,6 +40,7 @@ const SUMMARY_KEYWORDS = [
   'KANTAASIAKAS',
   'KORTTI',
   'OSTO', // covers "Ruokaostokset", "Käyttötavaraostokset" and "kerryttävät ostot"
+  'KERRYTTAVAT', // backs up 'OSTO' when OCR misreads "ostot" as "0stot"
   'TASAERA',
 ];
 
