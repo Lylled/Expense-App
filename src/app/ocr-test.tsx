@@ -1,6 +1,7 @@
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
@@ -12,6 +13,19 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Status = 'idle' | 'recognizing' | 'done' | 'error';
+
+/**
+ * Some Android devices save the photo in the camera sensor's native (landscape)
+ * orientation instead of rotating it to match the portrait-locked app, which then
+ * makes the OCR read the receipt sideways. Detect that and rotate it back.
+ */
+async function correctLandscapeCapture(photo: { uri: string; width: number; height: number }) {
+  if (photo.width <= photo.height) return photo.uri;
+
+  const rotated = await ImageManipulator.manipulate(photo.uri).rotate(-90).renderAsync();
+  const saved = await rotated.saveAsync({ compress: 1, format: SaveFormat.JPEG });
+  return saved.uri;
+}
 
 export default function OcrTestScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -27,9 +41,10 @@ export default function OcrTestScreen() {
     if (!cameraRef.current) return;
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
-      setPhotoUri(photo.uri);
+      const uri = await correctLandscapeCapture(photo);
+      setPhotoUri(uri);
       setStatus('recognizing');
-      const result = await TextRecognition.recognize(photo.uri);
+      const result = await TextRecognition.recognize(uri);
       setRecognizedText(result.text);
       setStatus('done');
     } catch (error) {
