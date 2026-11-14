@@ -56,7 +56,7 @@ function normalizeForMatch(text: string): string {
   return text
     .toUpperCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/\p{Mark}/gu, '')
     .replace(/[\s-]+/g, '');
 }
 
