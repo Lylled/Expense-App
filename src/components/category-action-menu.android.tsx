@@ -1,4 +1,4 @@
-import { DropdownMenu, DropdownMenuItem, Text as ComposeText } from '@expo/ui/jetpack-compose';
+import { DropdownMenu, DropdownMenuItem, Host, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
@@ -17,38 +17,40 @@ export function CategoryActionMenu({ onEdit, onDelete }: CategoryActionMenuProps
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <DropdownMenu expanded={isOpen} onDismissRequest={() => setIsOpen(false)}>
-      <DropdownMenu.Trigger>
-        <Pressable
-          onPress={() => setIsOpen(true)}
-          hitSlop={Spacing.two}
-          style={styles.menuButton}>
-          <ThemedText type="smallBold" style={styles.menuDots}>
-            ⋯
-          </ThemedText>
-        </Pressable>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Items>
-        <DropdownMenuItem
-          onClick={() => {
-            setIsOpen(false);
-            onEdit();
-          }}>
-          <DropdownMenuItem.Text>
-            <ComposeText>Muokkaa</ComposeText>
-          </DropdownMenuItem.Text>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            setIsOpen(false);
-            onDelete();
-          }}>
-          <DropdownMenuItem.Text>
-            <ComposeText>Poista</ComposeText>
-          </DropdownMenuItem.Text>
-        </DropdownMenuItem>
-      </DropdownMenu.Items>
-    </DropdownMenu>
+    <Host matchContents>
+      <DropdownMenu expanded={isOpen} onDismissRequest={() => setIsOpen(false)}>
+        <DropdownMenu.Trigger>
+          <Pressable
+            onPress={() => setIsOpen(true)}
+            hitSlop={Spacing.two}
+            style={styles.menuButton}>
+            <ThemedText type="smallBold" style={styles.menuDots}>
+              ⋯
+            </ThemedText>
+          </Pressable>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Items>
+          <DropdownMenuItem
+            onClick={() => {
+              setIsOpen(false);
+              onEdit();
+            }}>
+            <DropdownMenuItem.Text>
+              <ComposeText>Muokkaa</ComposeText>
+            </DropdownMenuItem.Text>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              setIsOpen(false);
+              onDelete();
+            }}>
+            <DropdownMenuItem.Text>
+              <ComposeText>Poista</ComposeText>
+            </DropdownMenuItem.Text>
+          </DropdownMenuItem>
+        </DropdownMenu.Items>
+      </DropdownMenu>
+    </Host>
   );
 }
 
