@@ -1,5 +1,6 @@
-import { Alert, Pressable, StyleSheet } from 'react-native';
+import { Alert, Pressable } from 'react-native';
 
+import { categoryActionMenuStyles as styles } from '@/components/category-action-menu.styles';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 
@@ -29,12 +30,3 @@ export function CategoryActionMenu({ label, onEdit, onDelete }: CategoryActionMe
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  menuButton: {
-    paddingHorizontal: Spacing.two,
-  },
-  menuDots: {
-    fontSize: 20,
-  },
-});

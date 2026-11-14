@@ -18,6 +18,49 @@ import { useAuth } from '@/hooks/use-auth';
 import { groupByParent, type Category } from '@/lib/categories';
 import { supabase } from '@/lib/supabase';
 
+type InlineCategoryFormProps = {
+  value: string;
+  onChangeText: (text: string) => void;
+  onSubmit: () => void;
+  placeholder?: string;
+  submitLabel?: string;
+  onCancel?: () => void;
+  autoFocus?: boolean;
+};
+
+function InlineCategoryForm({
+  value,
+  onChangeText,
+  onSubmit,
+  placeholder,
+  submitLabel = 'Lisää',
+  onCancel,
+  autoFocus,
+}: InlineCategoryFormProps) {
+  return (
+    <View style={styles.addRow}>
+      <TextInput
+        style={styles.input}
+        placeholder={placeholder}
+        placeholderTextColor="#8A8A8E"
+        value={value}
+        onChangeText={onChangeText}
+        autoFocus={autoFocus}
+      />
+      <Pressable style={styles.addButton} onPress={onSubmit}>
+        <ThemedText type="smallBold" style={styles.addButtonText}>
+          {submitLabel}
+        </ThemedText>
+      </Pressable>
+      {onCancel && (
+        <Pressable onPress={onCancel}>
+          <ThemedText type="small">Peruuta</ThemedText>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 type CategoryRowProps = {
   category: Category;
   isSubcategory: boolean;
@@ -43,22 +86,14 @@ function CategoryRow({
 }: CategoryRowProps) {
   if (isEditing) {
     return (
-      <View style={styles.addRow}>
-        <TextInput
-          style={styles.input}
-          value={editingName}
-          onChangeText={onChangeEditingName}
-          autoFocus
-        />
-        <Pressable style={styles.addButton} onPress={onSaveEdit}>
-          <ThemedText type="smallBold" style={styles.addButtonText}>
-            Tallenna
-          </ThemedText>
-        </Pressable>
-        <Pressable onPress={onCancelEdit}>
-          <ThemedText type="small">Peruuta</ThemedText>
-        </Pressable>
-      </View>
+      <InlineCategoryForm
+        value={editingName}
+        onChangeText={onChangeEditingName}
+        onSubmit={onSaveEdit}
+        submitLabel="Tallenna"
+        onCancel={onCancelEdit}
+        autoFocus
+      />
     );
   }
 
@@ -207,20 +242,12 @@ export default function CategoriesScreen() {
           Luokat
         </ThemedText>
 
-        <View style={styles.addRow}>
-          <TextInput
-            style={styles.input}
-            placeholder="Uuden luokan nimi"
-            placeholderTextColor="#8A8A8E"
-            value={newCategoryName}
-            onChangeText={setNewCategoryName}
-          />
-          <Pressable style={styles.addButton} onPress={handleAddCategory}>
-            <ThemedText type="smallBold" style={styles.addButtonText}>
-              Lisää
-            </ThemedText>
-          </Pressable>
-        </View>
+        <InlineCategoryForm
+          value={newCategoryName}
+          onChangeText={setNewCategoryName}
+          onSubmit={handleAddCategory}
+          placeholder="Uuden luokan nimi"
+        />
 
         {errorMessage !== '' && (
           <ThemedText type="small" style={styles.centerText}>
@@ -270,23 +297,13 @@ export default function CategoriesScreen() {
                 ))}
 
                 {subcategoryParentId === item.id ? (
-                  <View style={styles.addRow}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Alaluokan nimi"
-                      placeholderTextColor="#8A8A8E"
-                      value={newSubcategoryName}
-                      onChangeText={setNewSubcategoryName}
-                      autoFocus
-                    />
-                    <Pressable
-                      style={styles.addButton}
-                      onPress={() => handleAddSubcategory(item.id)}>
-                      <ThemedText type="smallBold" style={styles.addButtonText}>
-                        Lisää
-                      </ThemedText>
-                    </Pressable>
-                  </View>
+                  <InlineCategoryForm
+                    value={newSubcategoryName}
+                    onChangeText={setNewSubcategoryName}
+                    onSubmit={() => handleAddSubcategory(item.id)}
+                    placeholder="Alaluokan nimi"
+                    autoFocus
+                  />
                 ) : (
                   <Pressable onPress={() => setSubcategoryParentId(item.id)}>
                     <ThemedText type="linkPrimary">+ Lisää alaluokka</ThemedText>

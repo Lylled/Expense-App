@@ -1,7 +1,8 @@
 import { DropdownMenu, DropdownMenuItem, Host, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable } from 'react-native';
 
+import { categoryActionMenuStyles as styles } from '@/components/category-action-menu.styles';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 
@@ -53,12 +54,3 @@ export function CategoryActionMenu({ onEdit, onDelete }: CategoryActionMenuProps
     </Host>
   );
 }
-
-const styles = StyleSheet.create({
-  menuButton: {
-    paddingHorizontal: Spacing.two,
-  },
-  menuDots: {
-    fontSize: 20,
-  },
-});
