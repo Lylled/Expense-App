@@ -1,56 +1,76 @@
-# Welcome to your Expo app 👋
+# Kuittisovellus
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Mobiilisovellus kuittikuvien perusteella tapahtuvaan kulutusseurantaan. Käyttäjä kuvaa kuitin, sovellus lukee kuitista tekstin ja ehdottaa jatkossa luokkia aiempien merkintöjen perusteella, ja käyttäjä voi korjata ehdotukset.
 
-## Get started
+**Projekti on kesken.** Tämä README kuvaa tilanteen sellaisena kuin se nyt on, ei lopullista visiota.
 
-1. Install dependencies
+## Idea
 
-   ```bash
-   npm install
-   ```
+- Kuvaa kuitti → sovellus tunnistaa kaupan, päivämäärän ja ostetut tuotteet hintoineen
+- Jokaiselle kuitin tuoteriville ehdotetaan luokkaa aiempien tallennusten perusteella; käyttäjä voi korjata ehdotuksen
+- Luokat ovat hierarkkisia, esim. `KOTI` → Ruoka, Hygienia, Sisustus
+- Viikko- ja kuukausitason sekä pidemmän aikavälin yhteenvedot kokonaiskulutuksesta ja luokittain
 
-2. Start the app
+## Tekninen toteutus
 
-   ```bash
-   npx expo start
-   ```
+- **Alusta:** Expo / React Native, TypeScript, Expo Router -reititys. Kohdealustana tällä hetkellä Android (iOS/web eivät vielä testattuja osiltaan, jotka käyttävät natiivimoduuleja)
+- **Taustapalvelu:** [Supabase](https://supabase.com) — PostgreSQL-tietokanta, autentikointi ja Row Level Security -säännöt per käyttäjä
+- **Kuitin skannaus:** natiivi dokumenttiskanneri (`react-native-document-scanner-plugin`, pohjautuu Googlen ML Kit Document Scanneriin) rajaa ja suoristaa (deskew) kuitin kuvasta automaattisesti ennen tekstintunnistusta
+- **Tekstintunnistus (OCR):** Google ML Kit (`@react-native-ml-kit/text-recognition`), toimii laitteella paikallisesti
+- **Kuitin jäsennys:** oma logiikka (`src/lib/parse-receipt.ts`), joka kokoaa ML Kitin löytämät tekstinpätkät takaisin riveiksi niiden sijaintitiedon perusteella (OCR ei muuten palauta tekstiä rivijärjestyksessä) ja poimii tuloksesta kaupan nimen, päivämäärän sekä tuotteet hintoineen
 
-In the output, you'll find options to open the app in a
+## Tilanne nyt
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+**Toteutettu:**
+- Rekisteröityminen, kirjautuminen ja uloskirjautuminen (Supabase Auth)
+- Hierarkkisten luokkien ja alaluokkien luonti, muokkaus ja poisto, esimerkkiluokilla valmiiksi täytettynä uudelle käyttäjälle
+- Kuitin skannaus, tekstintunnistus ja jäsennys (kauppa, päivämäärä, tuotteet, hinnat) — toimii omalla testinäytöllään, mutta **ei ole vielä yhdistetty varsinaiseen menojen tallennukseen**
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+**Seuraavaksi** (tarkempi backlog [GitHub-issueissa](../../issues)):
+- Kuitilta luetun kuvan/tekstin muuttaminen tallennetuksi menoksi oikeaan luokkaan
+- Luokkaehdotukset kuitin riveille
+- Manuaalinen menon lisäys ilman kuittikuvaa
+- Kulutuksen yhteenvedot ja Excel-export
+- Tilin poisto, jaettu talous toisen käyttäjän kanssa, ja muu backlogissa listattu
 
-## Get a fresh project
+## Kehitysympäristön pystytys
 
-When you're ready, run:
+### Vaatimukset
+
+- Node.js 20 LTS tai uudempi
+- Android Studio + Android SDK (sovellus käyttää natiivimoduuleja, **ei toimi Expo Go -sovelluksessa** — tarvitaan oma dev-client-build)
+- JDK 17 Gradle-buildia varten — Android Studion mukana tuleva uusin JDK (esim. 21+) ei tällä hetkellä toimi tämän projektin natiivibuildien kanssa
+- Ilmainen [Supabase](https://supabase.com)-projekti
+
+### Asennus
 
 ```bash
-npm run reset-project
+git clone <repo-url>
+cd Expense-App
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Luo projektin juureen `.env.local`-tiedosto (ei committoida gittiin):
 
-### Other setup steps
+```
+EXPO_PUBLIC_SUPABASE_URL=...
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Arvot löytyvät Supabasen dashboardista (**Settings → API**). Käytä **Publishable key** -arvoa — ei koskaan Secret/service_role-avainta, joka ei saa päätyä mobiilisovellukseen.
 
-## Learn more
+Aja `supabase/sql/`-kansion tiedostot Supabasen **SQL Editorissa** numerojärjestyksessä — ne luovat `categories`-taulun, tietoturvasäännöt (RLS) ja oletusluokkien automaattisen luonnin uusille käyttäjille.
 
-To learn more about developing your project with Expo, look at the following resources:
+### Ajaminen
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Ensimmäinen kerta (ja aina kun natiivipuolen riippuvuudet muuttuvat) vaatii täyden natiivibuildin:
 
-## Join the community
+```bash
+npx expo run:android
+```
 
-Join our community of developers creating universal apps.
+Tämä kääntää koko natiivin Android-projektin ja kestää useita minuutteja. Sen jälkeen pelkät JS/TS-muutokset latautuvat nopeasti:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npx expo start --dev-client
+```
