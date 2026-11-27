@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,9 +30,11 @@ export default function ExpensesScreen() {
   const [dateText, setDateText] = useState(todayAsFinnishDate());
   const [categoryId, setCategoryId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+    }, [])
+  );
 
   async function fetchAll() {
     setIsLoading(true);
