@@ -34,6 +34,12 @@ export function parseFinnishDate(value: string): string | null {
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
+/** Formats an ISO "YYYY-MM-DD" date as "pp.kk.vvvv". */
+export function isoDateToFinnish(isoDate: string): string {
+  const [year, month, day] = isoDate.split('-');
+  return `${day}.${month}.${year}`;
+}
+
 export function formatAmount(amount: number): string {
   return `${amount.toFixed(2).replace('.', ',')} €`;
 }
