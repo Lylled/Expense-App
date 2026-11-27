@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { OptionDropdown } from '@/components/option-dropdown';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
-import { useTheme } from '@/hooks/use-theme';
-import { flattenForPicker, type Category, type CategoryOption } from '@/lib/categories';
+import { groupByParent, type Category } from '@/lib/categories';
 import {
   formatAmount,
   parseFinnishDate,
@@ -18,16 +18,16 @@ import { supabase } from '@/lib/supabase';
 
 export default function ExpensesScreen() {
   const { session } = useAuth();
-  const theme = useTheme();
 
   const [expenses, setExpenses] = useState<ExpenseWithCategory[]>([]);
-  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [dateText, setDateText] = useState(todayAsFinnishDate());
+  const [parentId, setParentId] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,9 +49,25 @@ export default function ExpensesScreen() {
     else setExpenses(expensesResult.data ?? []);
 
     if (categoriesResult.error) setErrorMessage(categoriesResult.error.message);
-    else setCategoryOptions(flattenForPicker((categoriesResult.data ?? []) as Category[]));
+    else setCategories((categoriesResult.data ?? []) as Category[]);
 
     setIsLoading(false);
+  }
+
+  const grouped = groupByParent(categories);
+  const selectedParent = grouped.find((category) => category.id === parentId) ?? null;
+
+  function handleSelectParent(id: string) {
+    const parent = grouped.find((category) => category.id === id);
+    setParentId(id);
+    // A parent with no subcategories is itself the final category; one
+    // with subcategories needs a second, explicit pick below.
+    setCategoryId(parent && parent.children.length === 0 ? id : null);
+  }
+
+  function handleBackToParent() {
+    setParentId(null);
+    setCategoryId(null);
   }
 
   async function handleAddExpense() {
@@ -92,6 +108,7 @@ export default function ExpensesScreen() {
     setAmount('');
     setDescription('');
     setDateText(todayAsFinnishDate());
+    setParentId(null);
     setCategoryId(null);
     fetchAll();
   }
@@ -127,25 +144,32 @@ export default function ExpensesScreen() {
             onChangeText={setDateText}
           />
 
-          <ThemedText type="small" themeColor="textSecondary">
-            Luokka
-          </ThemedText>
-          <View style={styles.categoryChips}>
-            {categoryOptions.map((option) => (
-              <Pressable
-                key={option.id}
-                onPress={() => setCategoryId(option.id)}
-                style={[
-                  styles.categoryChip,
-                  {
-                    backgroundColor:
-                      categoryId === option.id ? theme.backgroundSelected : theme.background,
-                  },
-                ]}>
-                <ThemedText type="small">{option.label}</ThemedText>
+          <OptionDropdown
+            title="Valitse pääluokka"
+            label={selectedParent?.name ?? 'Valitse pääluokka'}
+            options={grouped.map((category) => ({ id: category.id, label: category.name }))}
+            onSelect={handleSelectParent}
+          />
+
+          {selectedParent && selectedParent.children.length > 0 && (
+            <>
+              <OptionDropdown
+                title="Valitse alaluokka"
+                label={
+                  selectedParent.children.find((child) => child.id === categoryId)?.name ??
+                  'Valitse alaluokka'
+                }
+                options={selectedParent.children.map((child) => ({
+                  id: child.id,
+                  label: child.name,
+                }))}
+                onSelect={setCategoryId}
+              />
+              <Pressable onPress={handleBackToParent}>
+                <ThemedText type="linkPrimary">← Vaihda pääluokka</ThemedText>
               </Pressable>
-            ))}
-          </View>
+            </>
+          )}
 
           <Pressable style={styles.addButton} onPress={handleAddExpense}>
             <ThemedText type="smallBold" style={styles.addButtonText}>
@@ -175,7 +199,9 @@ export default function ExpensesScreen() {
             renderItem={({ item }) => (
               <ThemedView type="backgroundElement" style={styles.expenseCard}>
                 <View style={styles.expenseRow}>
-                  <ThemedText type="smallBold">{item.category?.name ?? '(luokka poistettu)'}</ThemedText>
+                  <ThemedText type="smallBold">
+                    {item.category?.name ?? '(luokka poistettu)'}
+                  </ThemedText>
                   <ThemedText type="smallBold">{formatAmount(item.amount)}</ThemedText>
                 </View>
                 <View style={styles.expenseRow}>
@@ -226,16 +252,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#ffffff',
     color: '#000000',
-  },
-  categoryChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  categoryChip: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-    borderRadius: Spacing.five,
   },
   addButton: {
     backgroundColor: '#208AEF',
