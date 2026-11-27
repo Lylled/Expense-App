@@ -20,6 +20,11 @@ export default function AppTabs() {
         />
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="expenses">
+        <NativeTabs.Trigger.Label>Menot</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="eurosign.circle.fill" md="payments" />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="categories">
         <NativeTabs.Trigger.Label>Luokat</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="folder.fill" md="folder" />
