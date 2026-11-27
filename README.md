@@ -1,4 +1,4 @@
-# Kuittisovellus
+# Kuittikamu
 
 Mobiilisovellus kuittikuvien perusteella tapahtuvaan kulutusseurantaan. Käyttäjä kuvaa kuitin, sovellus lukee kuitista tekstin ja ehdottaa jatkossa luokkia aiempien merkintöjen perusteella, ja käyttäjä voi korjata ehdotukset.
 
