@@ -240,73 +240,74 @@ export default function ExpensesScreen() {
                 Ei vielä menoja. Lisää ensimmäinen yllä.
               </ThemedText>
             }
-            renderItem={({ item }) =>
-              editingId === item.id ? (
-                <ThemedView type="backgroundElement" style={styles.expenseCard}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Summa (€)"
-                    placeholderTextColor="#8A8A8E"
-                    keyboardType="decimal-pad"
-                    value={editAmount}
-                    onChangeText={setEditAmount}
+            renderItem={({ item }) => (
+              <ThemedView type="backgroundElement" style={styles.expenseCard}>
+                <View style={styles.expenseHeaderRow}>
+                  <ThemedText type="smallBold" style={styles.expenseHeaderName}>
+                    {item.category?.name ?? '(luokka poistettu)'}
+                  </ThemedText>
+                  <CategoryActionMenu
+                    label={item.category?.name ?? 'Meno'}
+                    onEdit={() => startEditingExpense(item)}
+                    onDelete={() => confirmDeleteExpense(item.id)}
                   />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Kuvaus (valinnainen)"
-                    placeholderTextColor="#8A8A8E"
-                    value={editDescription}
-                    onChangeText={setEditDescription}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="pp.kk.vvvv"
-                    placeholderTextColor="#8A8A8E"
-                    value={editDateText}
-                    onChangeText={setEditDateText}
-                  />
-                  <CategoryDropdown
-                    categories={grouped}
-                    selectedCategoryId={editCategoryId}
-                    onSelect={setEditCategoryId}
-                  />
-                  <View style={styles.editActions}>
-                    <Pressable style={styles.addButton} onPress={saveEditingExpense}>
-                      <ThemedText type="smallBold" style={styles.addButtonText}>
-                        Tallenna
-                      </ThemedText>
-                    </Pressable>
-                    <Pressable onPress={cancelEditingExpense}>
-                      <ThemedText type="small">Peruuta</ThemedText>
-                    </Pressable>
-                  </View>
-                </ThemedView>
-              ) : (
-                <ThemedView type="backgroundElement" style={styles.expenseCard}>
-                  <View style={styles.expenseRow}>
-                    <ThemedText type="smallBold">
-                      {item.category?.name ?? '(luokka poistettu)'}
-                    </ThemedText>
-                    <View style={styles.expenseRowEnd}>
-                      <ThemedText type="smallBold">{formatAmount(item.amount)}</ThemedText>
-                      <CategoryActionMenu
-                        label={item.category?.name ?? 'Meno'}
-                        onEdit={() => startEditingExpense(item)}
-                        onDelete={() => confirmDeleteExpense(item.id)}
-                      />
+                </View>
+
+                {editingId === item.id ? (
+                  <>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Summa (€)"
+                      placeholderTextColor="#8A8A8E"
+                      keyboardType="decimal-pad"
+                      value={editAmount}
+                      onChangeText={setEditAmount}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Kuvaus (valinnainen)"
+                      placeholderTextColor="#8A8A8E"
+                      value={editDescription}
+                      onChangeText={setEditDescription}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="pp.kk.vvvv"
+                      placeholderTextColor="#8A8A8E"
+                      value={editDateText}
+                      onChangeText={setEditDateText}
+                    />
+                    <CategoryDropdown
+                      categories={grouped}
+                      selectedCategoryId={editCategoryId}
+                      onSelect={setEditCategoryId}
+                    />
+                    <View style={styles.editActions}>
+                      <Pressable style={styles.addButton} onPress={saveEditingExpense}>
+                        <ThemedText type="smallBold" style={styles.addButtonText}>
+                          Tallenna
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable onPress={cancelEditingExpense}>
+                        <ThemedText type="small">Peruuta</ThemedText>
+                      </Pressable>
                     </View>
-                  </View>
+                  </>
+                ) : (
                   <View style={styles.expenseRow}>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {item.description || '—'}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {item.expense_date}
-                    </ThemedText>
+                    <View>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {item.description || '—'}
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {item.expense_date}
+                      </ThemedText>
+                    </View>
+                    <ThemedText type="smallBold">{formatAmount(item.amount)}</ThemedText>
                   </View>
-                </ThemedView>
-              )
-            }
+                )}
+              </ThemedView>
+            )}
           />
         )}
       </SafeAreaView>
@@ -368,10 +369,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  expenseRowEnd: {
+  expenseHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
+    justifyContent: 'space-between',
+  },
+  expenseHeaderName: {
+    flexShrink: 1,
   },
   editActions: {
     flexDirection: 'row',
