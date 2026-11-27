@@ -65,11 +65,6 @@ export default function ExpensesScreen() {
     setCategoryId(parent && parent.children.length === 0 ? id : null);
   }
 
-  function handleBackToParent() {
-    setParentId(null);
-    setCategoryId(null);
-  }
-
   async function handleAddExpense() {
     setErrorMessage('');
 
@@ -152,23 +147,18 @@ export default function ExpensesScreen() {
           />
 
           {selectedParent && selectedParent.children.length > 0 && (
-            <>
-              <OptionDropdown
-                title="Valitse alaluokka"
-                label={
-                  selectedParent.children.find((child) => child.id === categoryId)?.name ??
-                  'Valitse alaluokka'
-                }
-                options={selectedParent.children.map((child) => ({
-                  id: child.id,
-                  label: child.name,
-                }))}
-                onSelect={setCategoryId}
-              />
-              <Pressable onPress={handleBackToParent}>
-                <ThemedText type="linkPrimary">← Vaihda pääluokka</ThemedText>
-              </Pressable>
-            </>
+            <OptionDropdown
+              title="Valitse alaluokka"
+              label={
+                selectedParent.children.find((child) => child.id === categoryId)?.name ??
+                'Valitse alaluokka'
+              }
+              options={selectedParent.children.map((child) => ({
+                id: child.id,
+                label: child.name,
+              }))}
+              onSelect={setCategoryId}
+            />
           )}
 
           <Pressable style={styles.addButton} onPress={handleAddExpense}>
