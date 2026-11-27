@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { OptionDropdown } from '@/components/option-dropdown';
+import { CategoryDropdown } from '@/components/category-dropdown';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -27,7 +27,6 @@ export default function ExpensesScreen() {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [dateText, setDateText] = useState(todayAsFinnishDate());
-  const [parentId, setParentId] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,15 +54,6 @@ export default function ExpensesScreen() {
   }
 
   const grouped = groupByParent(categories);
-  const selectedParent = grouped.find((category) => category.id === parentId) ?? null;
-
-  function handleSelectParent(id: string) {
-    const parent = grouped.find((category) => category.id === id);
-    setParentId(id);
-    // A parent with no subcategories is itself the final category; one
-    // with subcategories needs a second, explicit pick below.
-    setCategoryId(parent && parent.children.length === 0 ? id : null);
-  }
 
   async function handleAddExpense() {
     setErrorMessage('');
@@ -103,7 +93,6 @@ export default function ExpensesScreen() {
     setAmount('');
     setDescription('');
     setDateText(todayAsFinnishDate());
-    setParentId(null);
     setCategoryId(null);
     fetchAll();
   }
@@ -139,27 +128,11 @@ export default function ExpensesScreen() {
             onChangeText={setDateText}
           />
 
-          <OptionDropdown
-            title="Valitse pääluokka"
-            label={selectedParent?.name ?? 'Valitse pääluokka'}
-            options={grouped.map((category) => ({ id: category.id, label: category.name }))}
-            onSelect={handleSelectParent}
+          <CategoryDropdown
+            categories={grouped}
+            selectedCategoryId={categoryId}
+            onSelect={setCategoryId}
           />
-
-          {selectedParent && selectedParent.children.length > 0 && (
-            <OptionDropdown
-              title="Valitse alaluokka"
-              label={
-                selectedParent.children.find((child) => child.id === categoryId)?.name ??
-                'Valitse alaluokka'
-              }
-              options={selectedParent.children.map((child) => ({
-                id: child.id,
-                label: child.name,
-              }))}
-              onSelect={setCategoryId}
-            />
-          )}
 
           <Pressable style={styles.addButton} onPress={handleAddExpense}>
             <ThemedText type="smallBold" style={styles.addButtonText}>

@@ -2,8 +2,8 @@ import { StyleSheet } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
 
-// Shared between option-dropdown.tsx and option-dropdown.android.tsx.
-export const optionDropdownStyles = StyleSheet.create({
+// Shared between category-dropdown.tsx and category-dropdown.android.tsx.
+export const categoryDropdownStyles = StyleSheet.create({
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',
