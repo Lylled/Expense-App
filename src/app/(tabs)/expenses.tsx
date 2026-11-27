@@ -1,18 +1,18 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryActionMenu } from '@/components/category-action-menu';
 import { CategoryDropdown } from '@/components/category-dropdown';
+import { ExpenseListItem } from '@/components/expense-list-item';
+import { expenseListStyles as sharedStyles } from '@/components/expense-list.styles';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
-import { useTheme } from '@/hooks/use-theme';
 import { groupByParent, type Category } from '@/lib/categories';
 import {
-  formatAmount,
   isoDateToFinnish,
   parseFinnishDate,
   todayAsFinnishDate,
@@ -22,7 +22,6 @@ import { supabase } from '@/lib/supabase';
 
 export default function ExpensesScreen() {
   const { session } = useAuth();
-  const theme = useTheme();
 
   const [expenses, setExpenses] = useState<ExpenseWithCategory[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -37,31 +36,30 @@ export default function ExpensesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchAll();
+      setIsLoading(true);
+      Promise.all([fetchExpenses(), fetchCategories()]).finally(() => setIsLoading(false));
     }, [])
   );
 
-  async function fetchAll() {
-    setIsLoading(true);
-    const [expensesResult, categoriesResult] = await Promise.all([
-      supabase
-        .from('expenses')
-        .select('*, category:categories(name)')
-        .order('expense_date', { ascending: false })
-        .order('created_at', { ascending: false }),
-      supabase.from('categories').select('*'),
-    ]);
+  async function fetchExpenses() {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*, category:categories(name)')
+      .order('expense_date', { ascending: false })
+      .order('created_at', { ascending: false });
 
-    if (expensesResult.error) setErrorMessage(expensesResult.error.message);
-    else setExpenses(expensesResult.data ?? []);
-
-    if (categoriesResult.error) setErrorMessage(categoriesResult.error.message);
-    else setCategories((categoriesResult.data ?? []) as Category[]);
-
-    setIsLoading(false);
+    if (error) setErrorMessage(error.message);
+    else setExpenses(data ?? []);
   }
 
-  const grouped = groupByParent(categories);
+  async function fetchCategories() {
+    const { data, error } = await supabase.from('categories').select('*');
+
+    if (error) setErrorMessage(error.message);
+    else setCategories((data ?? []) as Category[]);
+  }
+
+  const grouped = useMemo(() => groupByParent(categories), [categories]);
 
   function resetForm() {
     setAmount('');
@@ -118,7 +116,7 @@ export default function ExpensesScreen() {
     }
 
     resetForm();
-    fetchAll();
+    fetchExpenses();
   }
 
   function confirmDeleteExpense(id: string) {
@@ -132,7 +130,7 @@ export default function ExpensesScreen() {
           if (error) setErrorMessage(error.message);
           else {
             if (editingId === id) resetForm();
-            fetchAll();
+            fetchExpenses();
           }
         },
       },
@@ -140,9 +138,9 @@ export default function ExpensesScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="title" style={styles.title}>
+    <ThemedView style={sharedStyles.container}>
+      <SafeAreaView style={sharedStyles.safeArea}>
+        <ThemedText type="title" style={sharedStyles.title}>
           Menot
         </ThemedText>
 
@@ -190,8 +188,8 @@ export default function ExpensesScreen() {
           </View>
         </ThemedView>
 
-        {errorMessage !== '' && (
-          <ThemedText type="small" style={styles.centerText}>
+        {errorMessage && (
+          <ThemedText type="small" style={sharedStyles.centerText}>
             {errorMessage}
           </ThemedText>
         )}
@@ -202,42 +200,24 @@ export default function ExpensesScreen() {
           <FlatList
             data={expenses}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={sharedStyles.listContent}
             ListEmptyComponent={
-              <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
+              <ThemedText type="small" themeColor="textSecondary" style={sharedStyles.centerText}>
                 Ei vielä menoja. Lisää ensimmäinen yllä.
               </ThemedText>
             }
             renderItem={({ item }) => (
-              <ThemedView
-                type="backgroundElement"
-                style={[
-                  styles.expenseCard,
-                  editingId === item.id && { backgroundColor: theme.backgroundSelected },
-                ]}>
-                <View style={styles.expenseHeaderRow}>
-                  <ThemedText type="smallBold" style={styles.expenseHeaderName}>
-                    {item.category?.name ?? '(luokka poistettu)'}
-                  </ThemedText>
+              <ExpenseListItem
+                expense={item}
+                highlighted={editingId === item.id}
+                actions={
                   <CategoryActionMenu
                     label={item.category?.name ?? 'Meno'}
                     onEdit={() => startEditingExpense(item)}
                     onDelete={() => confirmDeleteExpense(item.id)}
                   />
-                </View>
-
-                <View style={styles.expenseRow}>
-                  <View>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {item.description || '—'}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {item.expense_date}
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="smallBold">{formatAmount(item.amount)}</ThemedText>
-                </View>
-              </ThemedView>
+                }
+              />
             )}
           />
         )}
@@ -247,24 +227,6 @@ export default function ExpensesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-    gap: Spacing.three,
-    alignSelf: 'center',
-    maxWidth: MaxContentWidth,
-    width: '100%',
-  },
-  title: {
-    textAlign: 'center',
-  },
-  centerText: {
-    textAlign: 'center',
-  },
   form: {
     borderRadius: Spacing.three,
     padding: Spacing.three,
@@ -292,26 +254,5 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: '#ffffff',
-  },
-  listContent: {
-    gap: Spacing.two,
-    paddingBottom: BottomTabInset + Spacing.three,
-  },
-  expenseCard: {
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    gap: Spacing.one,
-  },
-  expenseRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  expenseHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  expenseHeaderName: {
-    flexShrink: 1,
   },
 });

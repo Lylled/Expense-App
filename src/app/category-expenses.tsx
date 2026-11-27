@@ -1,11 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ExpenseListItem } from '@/components/expense-list-item';
+import { expenseListStyles as sharedStyles } from '@/components/expense-list.styles';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { formatAmount, type ExpenseWithCategory } from '@/lib/expenses';
 import { supabase } from '@/lib/supabase';
 
@@ -56,24 +58,24 @@ export default function CategoryExpensesScreen() {
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+    <ThemedView style={sharedStyles.container}>
+      <SafeAreaView style={sharedStyles.safeArea}>
         <Pressable onPress={() => router.back()} style={styles.closeButton} hitSlop={Spacing.two}>
           <ThemedText type="link">Sulje</ThemedText>
         </Pressable>
 
-        <ThemedText type="title" style={styles.title}>
+        <ThemedText type="title" style={sharedStyles.title}>
           {categoryName}
         </ThemedText>
 
         {expenses.length > 0 && (
-          <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
+          <ThemedText type="small" themeColor="textSecondary" style={sharedStyles.centerText}>
             Yhteensä {formatAmount(total)}
           </ThemedText>
         )}
 
-        {errorMessage !== '' && (
-          <ThemedText type="small" style={styles.centerText}>
+        {errorMessage && (
+          <ThemedText type="small" style={sharedStyles.centerText}>
             {errorMessage}
           </ThemedText>
         )}
@@ -84,30 +86,13 @@ export default function CategoryExpensesScreen() {
           <FlatList
             data={expenses}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={sharedStyles.listContent}
             ListEmptyComponent={
-              <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
+              <ThemedText type="small" themeColor="textSecondary" style={sharedStyles.centerText}>
                 Ei menoja tässä luokassa.
               </ThemedText>
             }
-            renderItem={({ item }) => (
-              <ThemedView type="backgroundElement" style={styles.expenseCard}>
-                <View style={styles.expenseRow}>
-                  <ThemedText type="smallBold">
-                    {item.category?.name ?? '(luokka poistettu)'}
-                  </ThemedText>
-                  <ThemedText type="smallBold">{formatAmount(item.amount)}</ThemedText>
-                </View>
-                <View style={styles.expenseRow}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {item.description || '—'}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {item.expense_date}
-                  </ThemedText>
-                </View>
-              </ThemedView>
-            )}
+            renderItem={({ item }) => <ExpenseListItem expense={item} />}
           />
         )}
       </SafeAreaView>
@@ -116,38 +101,7 @@ export default function CategoryExpensesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-    gap: Spacing.three,
-    alignSelf: 'center',
-    maxWidth: MaxContentWidth,
-    width: '100%',
-  },
   closeButton: {
     alignSelf: 'flex-start',
-  },
-  title: {
-    textAlign: 'center',
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  listContent: {
-    gap: Spacing.two,
-    paddingBottom: BottomTabInset + Spacing.three,
-  },
-  expenseCard: {
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    gap: Spacing.one,
-  },
-  expenseRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
   },
 });

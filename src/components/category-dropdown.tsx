@@ -1,24 +1,9 @@
 import { Alert, Pressable } from 'react-native';
 
 import { categoryDropdownStyles as styles } from '@/components/category-dropdown.styles';
+import { findSelectedName, type CategoryDropdownProps } from '@/components/category-dropdown.shared';
 import { ThemedText } from '@/components/themed-text';
 import type { CategoryWithChildren } from '@/lib/categories';
-
-export type CategoryDropdownProps = {
-  categories: CategoryWithChildren[];
-  selectedCategoryId: string | null;
-  onSelect: (id: string) => void;
-};
-
-function findSelectedName(categories: CategoryWithChildren[], selectedCategoryId: string | null) {
-  if (!selectedCategoryId) return null;
-  for (const category of categories) {
-    if (category.id === selectedCategoryId) return category.name;
-    const child = category.children.find((c) => c.id === selectedCategoryId);
-    if (child) return child.name;
-  }
-  return null;
-}
 
 // Fallback for platforms other than Android (iOS, web): a chain of native
 // alerts drilling from pääluokka into alaluokka. See
