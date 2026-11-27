@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import { useTheme } from '@/hooks/use-theme';
 import { groupByParent, type Category } from '@/lib/categories';
 import {
   formatAmount,
@@ -21,6 +22,7 @@ import { supabase } from '@/lib/supabase';
 
 export default function ExpensesScreen() {
   const { session } = useAuth();
+  const theme = useTheme();
 
   const [expenses, setExpenses] = useState<ExpenseWithCategory[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -31,12 +33,7 @@ export default function ExpensesScreen() {
   const [description, setDescription] = useState('');
   const [dateText, setDateText] = useState(todayAsFinnishDate());
   const [categoryId, setCategoryId] = useState<string | null>(null);
-
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editAmount, setEditAmount] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [editDateText, setEditDateText] = useState('');
-  const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -66,7 +63,23 @@ export default function ExpensesScreen() {
 
   const grouped = groupByParent(categories);
 
-  async function handleAddExpense() {
+  function resetForm() {
+    setAmount('');
+    setDescription('');
+    setDateText(todayAsFinnishDate());
+    setCategoryId(null);
+    setEditingId(null);
+  }
+
+  function startEditingExpense(expense: ExpenseWithCategory) {
+    setEditingId(expense.id);
+    setAmount(String(expense.amount));
+    setDescription(expense.description ?? '');
+    setDateText(isoDateToFinnish(expense.expense_date));
+    setCategoryId(expense.category_id);
+  }
+
+  async function handleSubmit() {
     setErrorMessage('');
 
     const amountValue = Number(amount.replace(',', '.'));
@@ -86,80 +99,25 @@ export default function ExpensesScreen() {
       return;
     }
 
-    if (!session) return;
+    if (!editingId && !session) return;
 
-    const { error } = await supabase.from('expenses').insert({
-      user_id: session.user.id,
+    const values = {
       category_id: categoryId,
       amount: amountValue,
       description: description.trim() || null,
       expense_date: isoDate,
-    });
+    };
+
+    const { error } = editingId
+      ? await supabase.from('expenses').update(values).eq('id', editingId)
+      : await supabase.from('expenses').insert({ ...values, user_id: session!.user.id });
 
     if (error) {
       setErrorMessage(error.message);
       return;
     }
 
-    setAmount('');
-    setDescription('');
-    setDateText(todayAsFinnishDate());
-    setCategoryId(null);
-    fetchAll();
-  }
-
-  function startEditingExpense(expense: ExpenseWithCategory) {
-    setEditingId(expense.id);
-    setEditAmount(String(expense.amount));
-    setEditDescription(expense.description ?? '');
-    setEditDateText(isoDateToFinnish(expense.expense_date));
-    setEditCategoryId(expense.category_id);
-  }
-
-  function cancelEditingExpense() {
-    setEditingId(null);
-    setEditAmount('');
-    setEditDescription('');
-    setEditDateText('');
-    setEditCategoryId(null);
-  }
-
-  async function saveEditingExpense() {
-    setErrorMessage('');
-
-    const amountValue = Number(editAmount.replace(',', '.'));
-    if (!editAmount || Number.isNaN(amountValue) || amountValue <= 0) {
-      setErrorMessage('Anna summa, joka on suurempi kuin 0.');
-      return;
-    }
-
-    const isoDate = parseFinnishDate(editDateText);
-    if (!isoDate) {
-      setErrorMessage('Päivämäärä pitää olla muodossa pp.kk.vvvv.');
-      return;
-    }
-
-    if (!editCategoryId) {
-      setErrorMessage('Valitse luokka.');
-      return;
-    }
-
-    const { error } = await supabase
-      .from('expenses')
-      .update({
-        category_id: editCategoryId,
-        amount: amountValue,
-        description: editDescription.trim() || null,
-        expense_date: isoDate,
-      })
-      .eq('id', editingId);
-
-    if (error) {
-      setErrorMessage(error.message);
-      return;
-    }
-
-    cancelEditingExpense();
+    resetForm();
     fetchAll();
   }
 
@@ -172,7 +130,10 @@ export default function ExpensesScreen() {
         onPress: async () => {
           const { error } = await supabase.from('expenses').delete().eq('id', id);
           if (error) setErrorMessage(error.message);
-          else fetchAll();
+          else {
+            if (editingId === id) resetForm();
+            fetchAll();
+          }
         },
       },
     ]);
@@ -215,11 +176,18 @@ export default function ExpensesScreen() {
             onSelect={setCategoryId}
           />
 
-          <Pressable style={styles.addButton} onPress={handleAddExpense}>
-            <ThemedText type="smallBold" style={styles.addButtonText}>
-              Lisää meno
-            </ThemedText>
-          </Pressable>
+          <View style={styles.formActions}>
+            <Pressable style={styles.addButton} onPress={handleSubmit}>
+              <ThemedText type="smallBold" style={styles.addButtonText}>
+                {editingId ? 'Tallenna muutokset' : 'Lisää meno'}
+              </ThemedText>
+            </Pressable>
+            {editingId && (
+              <Pressable onPress={resetForm}>
+                <ThemedText type="small">Peruuta muokkaus</ThemedText>
+              </Pressable>
+            )}
+          </View>
         </ThemedView>
 
         {errorMessage !== '' && (
@@ -241,7 +209,12 @@ export default function ExpensesScreen() {
               </ThemedText>
             }
             renderItem={({ item }) => (
-              <ThemedView type="backgroundElement" style={styles.expenseCard}>
+              <ThemedView
+                type="backgroundElement"
+                style={[
+                  styles.expenseCard,
+                  editingId === item.id && { backgroundColor: theme.backgroundSelected },
+                ]}>
                 <View style={styles.expenseHeaderRow}>
                   <ThemedText type="smallBold" style={styles.expenseHeaderName}>
                     {item.category?.name ?? '(luokka poistettu)'}
@@ -253,59 +226,17 @@ export default function ExpensesScreen() {
                   />
                 </View>
 
-                {editingId === item.id ? (
-                  <>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Summa (€)"
-                      placeholderTextColor="#8A8A8E"
-                      keyboardType="decimal-pad"
-                      value={editAmount}
-                      onChangeText={setEditAmount}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Kuvaus (valinnainen)"
-                      placeholderTextColor="#8A8A8E"
-                      value={editDescription}
-                      onChangeText={setEditDescription}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="pp.kk.vvvv"
-                      placeholderTextColor="#8A8A8E"
-                      value={editDateText}
-                      onChangeText={setEditDateText}
-                    />
-                    <CategoryDropdown
-                      categories={grouped}
-                      selectedCategoryId={editCategoryId}
-                      onSelect={setEditCategoryId}
-                    />
-                    <View style={styles.editActions}>
-                      <Pressable style={styles.addButton} onPress={saveEditingExpense}>
-                        <ThemedText type="smallBold" style={styles.addButtonText}>
-                          Tallenna
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable onPress={cancelEditingExpense}>
-                        <ThemedText type="small">Peruuta</ThemedText>
-                      </Pressable>
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.expenseRow}>
-                    <View>
-                      <ThemedText type="small" themeColor="textSecondary">
-                        {item.description || '—'}
-                      </ThemedText>
-                      <ThemedText type="small" themeColor="textSecondary">
-                        {item.expense_date}
-                      </ThemedText>
-                    </View>
-                    <ThemedText type="smallBold">{formatAmount(item.amount)}</ThemedText>
+                <View style={styles.expenseRow}>
+                  <View>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {item.description || '—'}
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {item.expense_date}
+                    </ThemedText>
                   </View>
-                )}
+                  <ThemedText type="smallBold">{formatAmount(item.amount)}</ThemedText>
+                </View>
               </ThemedView>
             )}
           />
@@ -347,7 +278,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     color: '#000000',
   },
+  formActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
   addButton: {
+    flex: 1,
     backgroundColor: '#208AEF',
     paddingVertical: Spacing.three,
     borderRadius: Spacing.five,
@@ -376,10 +313,5 @@ const styles = StyleSheet.create({
   },
   expenseHeaderName: {
     flexShrink: 1,
-  },
-  editActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
   },
 });
