@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -99,9 +100,16 @@ function CategoryRow({
 
   return (
     <View style={[styles.categoryRow, isSubcategory && styles.subcategoryRow]}>
-      <ThemedText type={isSubcategory ? 'small' : 'smallBold'} style={styles.categoryRowName}>
-        {category.name}
-      </ThemedText>
+      <Pressable
+        style={styles.categoryRowName}
+        onPress={() =>
+          router.push({
+            pathname: '/category-expenses',
+            params: { categoryId: category.id, categoryName: category.name },
+          })
+        }>
+        <ThemedText type={isSubcategory ? 'small' : 'smallBold'}>{category.name}</ThemedText>
+      </Pressable>
       <CategoryActionMenu label={category.name} onEdit={onStartEdit} onDelete={onDelete} />
     </View>
   );

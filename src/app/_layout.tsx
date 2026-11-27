@@ -20,6 +20,7 @@ function RootNavigator() {
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="ocr-test" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="category-expenses" options={{ presentation: 'modal' }} />
       </Stack.Protected>
     </Stack>
   );
