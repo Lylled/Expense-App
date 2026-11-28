@@ -19,7 +19,7 @@ import {
   type DateRange,
   type PeriodKind,
 } from '@/lib/period';
-import { buildBreakdown, expensesInScope, totalForScope } from '@/lib/summary';
+import { buildBreakdown, expensesInScope, parentScopeId, totalForScope } from '@/lib/summary';
 import { supabase } from '@/lib/supabase';
 
 const PERIOD_LABELS: Record<PeriodKind, string> = {
@@ -27,7 +27,12 @@ const PERIOD_LABELS: Record<PeriodKind, string> = {
   month: 'Kuukausi',
   year: 'Vuosi',
   custom: 'Mukautettu',
+  allTime: 'Koko aika',
 };
+
+// Sentinel used only to mark "a range exists" for allTime, whose queries skip
+// date filtering entirely rather than reading these bounds.
+const ALL_TIME_RANGE: DateRange = { startIso: '0001-01-01', endIso: '9999-12-31' };
 
 export default function SummaryScreen() {
   const theme = useTheme();
@@ -48,6 +53,7 @@ export default function SummaryScreen() {
   const grouped = useMemo(() => groupByParent(categories), [categories]);
 
   const range: DateRange | null = useMemo(() => {
+    if (periodKind === 'allTime') return ALL_TIME_RANGE;
     if (periodKind !== 'custom') return getPeriodRange(periodKind, referenceDate);
 
     const startIso = parseFinnishDate(customStartText);
@@ -80,30 +86,37 @@ export default function SummaryScreen() {
     setIsLoading(true);
     setErrorMessage('');
 
-    const previousRange = getPreviousRange(range);
+    const isAllTime = periodKind === 'allTime';
 
-    Promise.all([
-      supabase
-        .from('expenses')
-        .select('*, category:categories(name)')
-        .gte('expense_date', range.startIso)
-        .lte('expense_date', range.endIso)
-        .order('amount', { ascending: false }),
-      supabase
-        .from('expenses')
-        .select('category_id, amount')
-        .gte('expense_date', previousRange.startIso)
-        .lte('expense_date', previousRange.endIso),
-    ]).then(([currentResult, previousResult]) => {
-      if (currentResult.error) setErrorMessage(currentResult.error.message);
-      else setExpenses(currentResult.data ?? []);
+    let currentQuery = supabase.from('expenses').select('*, category:categories(name)');
+    if (!isAllTime) {
+      currentQuery = currentQuery.gte('expense_date', range.startIso).lte('expense_date', range.endIso);
+    }
 
-      if (previousResult.error) setErrorMessage(previousResult.error.message);
-      else setPreviousExpenses(previousResult.data ?? []);
+    // "All time" has no preceding period to compare against.
+    const previousQuery = isAllTime
+      ? Promise.resolve({ data: [] as { category_id: string; amount: number }[], error: null })
+      : (() => {
+          const previousRange = getPreviousRange(range);
+          return supabase
+            .from('expenses')
+            .select('category_id, amount')
+            .gte('expense_date', previousRange.startIso)
+            .lte('expense_date', previousRange.endIso);
+        })();
 
-      setIsLoading(false);
-    });
-  }, [range]);
+    Promise.all([currentQuery.order('amount', { ascending: false }), previousQuery]).then(
+      ([currentResult, previousResult]) => {
+        if (currentResult.error) setErrorMessage(currentResult.error.message);
+        else setExpenses(currentResult.data ?? []);
+
+        if (previousResult.error) setErrorMessage(previousResult.error.message);
+        else setPreviousExpenses(previousResult.data ?? []);
+
+        setIsLoading(false);
+      }
+    );
+  }, [range, periodKind]);
 
   useEffect(() => {
     fetchExpenses();
@@ -121,12 +134,15 @@ export default function SummaryScreen() {
   const breakdown = buildBreakdown(grouped, expenses, scopeCategoryId);
   const scopedExpenses = expensesInScope(grouped, expenses, scopeCategoryId);
   const topExpenses = [...scopedExpenses].sort((a, b) => b.amount - a.amount).slice(0, 5);
-  const averagePerDay = range ? total / countDaysInRange(range) : 0;
+  const averagePerDay = range && periodKind !== 'allTime' ? total / countDaysInRange(range) : null;
   const comparisonPercentage = previousTotal > 0 ? ((total - previousTotal) / previousTotal) * 100 : null;
   const scopeName = scopeCategoryId
     ? (categories.find((category) => category.id === scopeCategoryId)?.name ?? 'Luokka poistettu')
     : 'Kaikki';
-  const canDrill = scopeCategoryId === null;
+  const backScopeId = parentScopeId(categories, scopeCategoryId);
+  const backLabel = backScopeId
+    ? `← Takaisin: ${categories.find((category) => category.id === backScopeId)?.name ?? ''}`
+    : '← Takaisin: Kaikki';
 
   return (
     <ThemedView style={styles.container}>
@@ -150,7 +166,11 @@ export default function SummaryScreen() {
             ))}
           </View>
 
-          {periodKind !== 'custom' ? (
+          {periodKind === 'allTime' ? (
+            <View style={styles.periodNavRow}>
+              <ThemedText type="smallBold">Koko aika</ThemedText>
+            </View>
+          ) : periodKind !== 'custom' ? (
             <View style={styles.periodNavRow}>
               <Pressable
                 onPress={() => setReferenceDate((current) => shiftReferenceDate(periodKind, current, -1))}
@@ -200,8 +220,8 @@ export default function SummaryScreen() {
           {range && !isLoading && (
             <>
               {scopeCategoryId && (
-                <Pressable onPress={() => setScopeCategoryId(null)}>
-                  <ThemedText type="linkPrimary">← Takaisin: Kaikki</ThemedText>
+                <Pressable onPress={() => setScopeCategoryId(backScopeId)}>
+                  <ThemedText type="linkPrimary">{backLabel}</ThemedText>
                 </Pressable>
               )}
 
@@ -218,7 +238,7 @@ export default function SummaryScreen() {
                     {comparisonPercentage.toFixed(1)} % edelliseen jaksoon verrattuna
                   </ThemedText>
                 )}
-                {total > 0 && (
+                {averagePerDay !== null && total > 0 && (
                   <ThemedText type="small" themeColor="textSecondary">
                     Keskimäärin {formatAmount(averagePerDay)} / päivä
                   </ThemedText>
@@ -235,12 +255,16 @@ export default function SummaryScreen() {
                 <View style={styles.section}>
                   <ThemedText type="smallBold">Luokat</ThemedText>
                   {breakdown.map((row) => {
+                    // A row with the current scope's own id (the "Ei alaluokkaa"
+                    // row for expenses booked directly on the parent) isn't a
+                    // distinct category to drill into; every other row is.
+                    const rowCanDrill = row.id !== scopeCategoryId;
                     const content = (
                       <>
                         <View style={styles.breakdownHeaderRow}>
                           <View style={styles.breakdownNameRow}>
                             <ThemedText type="small">{row.name}</ThemedText>
-                            {canDrill && (
+                            {rowCanDrill && (
                               <ThemedText type="small" themeColor="textSecondary">
                                 ›
                               </ThemedText>
@@ -255,7 +279,7 @@ export default function SummaryScreen() {
                         </View>
                       </>
                     );
-                    return canDrill ? (
+                    return rowCanDrill ? (
                       <Pressable key={row.id} onPress={() => setScopeCategoryId(row.id)}>
                         {({ pressed }) => (
                           <ThemedView

@@ -1,4 +1,4 @@
-export type PeriodKind = 'week' | 'month' | 'year' | 'custom';
+export type PeriodKind = 'week' | 'month' | 'year' | 'custom' | 'allTime';
 
 export type DateRange = {
   /** Inclusive, "YYYY-MM-DD". */

@@ -1,4 +1,4 @@
-import type { CategoryWithChildren } from '@/lib/categories';
+import type { Category, CategoryWithChildren } from '@/lib/categories';
 
 export type SummaryExpense = {
   category_id: string;
@@ -82,6 +82,13 @@ export function buildBreakdown(
       ...entry,
       percentage: total > 0 ? (entry.amount / total) * 100 : 0,
     }));
+}
+
+/** The scope to return to when stepping back one level: a subcategory's
+ * parent category, or null (root) from a top-level category. */
+export function parentScopeId(categories: Category[], scopeCategoryId: string | null): string | null {
+  if (!scopeCategoryId) return null;
+  return categories.find((category) => category.id === scopeCategoryId)?.parent_id ?? null;
 }
 
 export function expensesInScope<T extends SummaryExpense>(
