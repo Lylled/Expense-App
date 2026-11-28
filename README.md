@@ -24,12 +24,12 @@ Mobiilisovellus kuittikuvien perusteella tapahtuvaan kulutusseurantaan. Käyttä
 **Toteutettu:**
 - Rekisteröityminen, kirjautuminen ja uloskirjautuminen (Supabase Auth)
 - Hierarkkisten luokkien ja alaluokkien luonti, muokkaus ja poisto, esimerkkiluokilla valmiiksi täytettynä uudelle käyttäjälle
-- Kuitin skannaus, tekstintunnistus ja jäsennys (kauppa, päivämäärä, tuotteet, hinnat) — toimii omalla testinäytöllään, mutta **ei ole vielä yhdistetty varsinaiseen menojen tallennukseen**
+- Manuaalinen menon lisäys, muokkaus ja poisto; luokan valinta pudotusvalikolla (pääluokka → alaluokka)
+- Kuitin skannaus, tekstintunnistus ja jäsennys (kauppa, päivämäärä, tuotteet, hinnat), ja jäsennetyn kuitin jokaisen rivin tallentaminen menoksi omaan luokkaansa
 
 **Seuraavaksi** (tarkempi backlog [GitHub-issueissa](../../issues)):
-- Kuitilta luetun kuvan/tekstin muuttaminen tallennetuksi menoksi oikeaan luokkaan
-- Luokkaehdotukset kuitin riveille
-- Manuaalinen menon lisäys ilman kuittikuvaa
+- Luokkaehdotukset kuitin riveille aiempien tallennusten perusteella
+- Kuvasta luetun tekstin manuaalinen korjaaminen
 - Kulutuksen yhteenvedot ja Excel-export
 - Tilin poisto, jaettu talous toisen käyttäjän kanssa, ja muu backlogissa listattu
 
