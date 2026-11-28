@@ -341,6 +341,7 @@ const styles = StyleSheet.create({
   periodKindRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: Spacing.two,
   },
   periodKindChip: {
