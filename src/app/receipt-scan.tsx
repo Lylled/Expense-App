@@ -45,15 +45,23 @@ type AiParsedReceipt = {
 // { error: "..." } response body (its actual, useful detail) is only
 // reachable via error.context, the raw Response.
 async function describeFunctionError(error: unknown): Promise<string> {
-  const context = (error as { context?: unknown } | null)?.context;
-  if (context instanceof Response) {
+  // Duck-typed rather than `instanceof Response`: React Native's fetch
+  // polyfill produces a Response whose prototype chain doesn't match the
+  // global `Response` supabase-js's own fetch call sees, so `instanceof`
+  // silently fails here and always falls back to the generic message.
+  const context = (error as { context?: unknown } | null)?.context as
+    | { json?: () => Promise<unknown> }
+    | undefined;
+
+  if (context && typeof context.json === 'function') {
     try {
-      const body = await context.clone().json();
+      const body = (await context.json()) as { error?: unknown };
       if (body && typeof body.error === 'string') return body.error;
     } catch {
       // Response body wasn't JSON - fall through to the generic message.
     }
   }
+
   return error instanceof Error ? error.message : String(error);
 }
 
