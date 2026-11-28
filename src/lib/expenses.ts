@@ -6,6 +6,7 @@ export type Expense = {
   description: string | null;
   expense_date: string;
   created_at: string;
+  receipt_photo_uri: string | null;
 };
 
 export type ExpenseWithCategory = Expense & {

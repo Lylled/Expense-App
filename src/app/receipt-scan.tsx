@@ -78,6 +78,7 @@ export default function ReceiptScanScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [receiptPhotoUri, setReceiptPhotoUri] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string | null>(null);
   const [dateText, setDateText] = useState(todayAsFinnishDate());
   const [items, setItems] = useState<ReviewItem[]>([]);
@@ -133,8 +134,13 @@ export default function ReceiptScanScreen() {
       setStatus('recognizing');
 
       // Kept independent of whether the AI read below succeeds - the user's
-      // storage preference is about keeping a copy of the photo itself.
-      saveReceiptPhoto(receiptStorageMode, uri).catch(() => {});
+      // storage preference is about keeping a copy of the photo itself. Not
+      // awaited, so it doesn't delay the scan; by the time the user actually
+      // taps "Tallenna menot" (after reviewing the result), this has long
+      // since resolved and receiptPhotoUri is ready to attach to the rows.
+      saveReceiptPhoto(receiptStorageMode, uri)
+        .then(setReceiptPhotoUri)
+        .catch(() => {});
 
       const imageBase64 = await new File(uri).base64();
       const categoryOptions = flattenCategories(grouped);
@@ -171,6 +177,7 @@ export default function ReceiptScanScreen() {
 
   function handleReset() {
     setPhotoUri(null);
+    setReceiptPhotoUri(null);
     setStoreName(null);
     setDateText(todayAsFinnishDate());
     setItems([]);
@@ -263,6 +270,7 @@ export default function ReceiptScanScreen() {
         amount: amounts[index],
         description: item.name.trim(),
         expense_date: isoDate,
+        receipt_photo_uri: receiptPhotoUri,
       }))
     );
 
