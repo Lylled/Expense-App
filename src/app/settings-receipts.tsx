@@ -1,5 +1,7 @@
-import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Alert, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -11,8 +13,12 @@ import {
   RECEIPT_STORAGE_LABELS,
   RECEIPT_STORAGE_MODES,
   RECEIPT_STORAGE_STORAGE_KEY,
+  deleteReceiptPhoto,
+  listReceiptPhotos,
   type ReceiptStorageMode,
+  type SavedReceiptPhoto,
 } from '@/lib/receipt-storage';
+import { supabase } from '@/lib/supabase';
 
 export default function SettingsReceiptsScreen() {
   const theme = useTheme();
@@ -21,6 +27,33 @@ export default function SettingsReceiptsScreen() {
     RECEIPT_STORAGE_MODES,
     'none'
   );
+  const [photos, setPhotos] = useState<SavedReceiptPhoto[]>([]);
+  const [viewingUri, setViewingUri] = useState<string | null>(null);
+
+  // Independent of the current storage mode selection - photos saved while
+  // "Sovelluksen muisti" was active stay listed here even after switching
+  // away from it.
+  useFocusEffect(
+    useCallback(() => {
+      setPhotos(listReceiptPhotos());
+    }, [])
+  );
+
+  async function handleDeletePhoto(uri: string) {
+    deleteReceiptPhoto(uri);
+    setPhotos((current) => current.filter((photo) => photo.uri !== uri));
+
+    // Any expense that pointed to this photo would otherwise show a 📷
+    // button for an image that no longer exists.
+    await supabase.from('expenses').update({ receipt_photo_uri: null }).eq('receipt_photo_uri', uri);
+  }
+
+  function confirmDeletePhoto(uri: string) {
+    Alert.alert('Poista kuittikuva', 'Tätä ei voi perua.', [
+      { text: 'Peruuta', style: 'cancel' },
+      { text: 'Poista', style: 'destructive', onPress: () => handleDeletePhoto(uri) },
+    ]);
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -54,7 +87,46 @@ export default function SettingsReceiptsScreen() {
             ))}
           </View>
         </ThemedView>
+
+        <ThemedView type="backgroundElement" style={styles.section}>
+          <ThemedText type="smallBold">Tallennetut kuittikuvat ({photos.length})</ThemedText>
+          {photos.length === 0 ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              Ei tallennettuja kuittikuvia.
+            </ThemedText>
+          ) : (
+            <View style={styles.photoGrid}>
+              {photos.map((photo) => (
+                <View key={photo.uri} style={styles.photoTile}>
+                  <Pressable onPress={() => setViewingUri(photo.uri)}>
+                    <Image source={{ uri: photo.uri }} style={styles.photoThumbnail} contentFit="cover" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => confirmDeletePhoto(photo.uri)}
+                    style={styles.photoDeleteButton}
+                    hitSlop={Spacing.two}>
+                    <ThemedText type="small" style={styles.photoDeleteText}>
+                      ✕
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+        </ThemedView>
       </SafeAreaView>
+
+      <Modal
+        visible={viewingUri !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setViewingUri(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setViewingUri(null)}>
+          {viewingUri && (
+            <Image source={{ uri: viewingUri }} style={styles.fullImage} contentFit="contain" />
+          )}
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -92,5 +164,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.five,
+  },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+  },
+  photoTile: {
+    width: 90,
+    height: 90,
+  },
+  photoThumbnail: {
+    width: 90,
+    height: 90,
+    borderRadius: Spacing.two,
+  },
+  photoDeleteButton: {
+    position: 'absolute',
+    top: -Spacing.one,
+    right: -Spacing.one,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#D64545',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoDeleteText: {
+    color: '#ffffff',
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+  },
+  fullImage: {
+    width: '100%',
+    height: '90%',
   },
 });
