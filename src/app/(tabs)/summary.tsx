@@ -238,7 +238,14 @@ export default function SummaryScreen() {
                     const content = (
                       <>
                         <View style={styles.breakdownHeaderRow}>
-                          <ThemedText type="small">{row.name}</ThemedText>
+                          <View style={styles.breakdownNameRow}>
+                            <ThemedText type="small">{row.name}</ThemedText>
+                            {canDrill && (
+                              <ThemedText type="small" themeColor="textSecondary">
+                                ›
+                              </ThemedText>
+                            )}
+                          </View>
                           <ThemedText type="small">
                             {formatAmount(row.amount)} ({row.percentage.toFixed(0)} %)
                           </ThemedText>
@@ -249,11 +256,14 @@ export default function SummaryScreen() {
                       </>
                     );
                     return canDrill ? (
-                      <Pressable
-                        key={row.id}
-                        onPress={() => setScopeCategoryId(row.id)}
-                        style={styles.breakdownRow}>
-                        {content}
+                      <Pressable key={row.id} onPress={() => setScopeCategoryId(row.id)}>
+                        {({ pressed }) => (
+                          <ThemedView
+                            type="backgroundElement"
+                            style={[styles.breakdownCard, pressed && styles.breakdownCardPressed]}>
+                            {content}
+                          </ThemedView>
+                        )}
                       </Pressable>
                     ) : (
                       <View key={row.id} style={styles.breakdownRow}>
@@ -351,9 +361,22 @@ const styles = StyleSheet.create({
   breakdownRow: {
     gap: Spacing.one,
   },
+  breakdownCard: {
+    borderRadius: Spacing.two,
+    padding: Spacing.two,
+    gap: Spacing.one,
+  },
+  breakdownCardPressed: {
+    opacity: 0.7,
+  },
   breakdownHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  breakdownNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   breakdownBarTrack: {
     height: 6,
