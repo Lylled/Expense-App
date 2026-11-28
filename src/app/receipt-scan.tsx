@@ -14,7 +14,8 @@ import {
 import DocumentScanner, { ScanDocumentResponseStatus } from 'react-native-document-scanner-plugin';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CategoryPicker } from '@/components/category-picker';
+import { CategorySearchPicker } from '@/components/category-search-picker';
+import { Checkbox } from '@/components/checkbox';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -31,6 +32,7 @@ type ReviewItem = {
   name: string;
   priceText: string;
   categoryId: string | null;
+  checked: boolean;
 };
 
 type AiParsedReceipt = {
@@ -85,6 +87,7 @@ export default function ReceiptScanScreen() {
   const [storeName, setStoreName] = useState<string | null>(null);
   const [dateText, setDateText] = useState(todayAsFinnishDate());
   const [items, setItems] = useState<ReviewItem[]>([]);
+  const [editingKeys, setEditingKeys] = useState<ReadonlySet<string>>(new Set());
   const [status, setStatus] = useState<Status>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -133,6 +136,7 @@ export default function ReceiptScanScreen() {
           name: item.name,
           priceText: item.price.toFixed(2).replace('.', ','),
           categoryId: null,
+          checked: true,
         }))
       );
       setStatus('reviewing');
@@ -147,12 +151,9 @@ export default function ReceiptScanScreen() {
     setStoreName(null);
     setDateText(todayAsFinnishDate());
     setItems([]);
+    setEditingKeys(new Set());
     setErrorMessage('');
     setStatus('idle');
-  }
-
-  function removeItem(key: string) {
-    setItems((current) => current.filter((item) => item.key !== key));
   }
 
   function setItemCategory(key: string, categoryId: string) {
@@ -167,11 +168,34 @@ export default function ReceiptScanScreen() {
     setItems((current) => current.map((item) => (item.key === key ? { ...item, priceText } : item)));
   }
 
+  function toggleItemChecked(key: string) {
+    setItems((current) =>
+      current.map((item) => (item.key === key ? { ...item, checked: !item.checked } : item))
+    );
+  }
+
+  const allChecked = items.length > 0 && items.every((item) => item.checked);
+
+  function toggleAllChecked() {
+    const nextChecked = !allChecked;
+    setItems((current) => current.map((item) => ({ ...item, checked: nextChecked })));
+  }
+
+  function toggleEditing(key: string) {
+    setEditingKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   async function handleSave() {
     setErrorMessage('');
 
-    if (items.length === 0) {
-      setErrorMessage('Ei tallennettavia rivejä.');
+    const selected = items.filter((item) => item.checked);
+    if (selected.length === 0) {
+      setErrorMessage('Valitse vähintään yksi meno.');
       return;
     }
 
@@ -181,12 +205,12 @@ export default function ReceiptScanScreen() {
       return;
     }
 
-    if (items.some((item) => !item.categoryId)) {
-      setErrorMessage('Valitse luokka jokaiselle riville.');
+    if (selected.some((item) => !item.categoryId)) {
+      setErrorMessage('Valitse luokka jokaiselle valitulle riville.');
       return;
     }
 
-    const amounts = items.map((item) => Number(item.priceText.replace(',', '.')));
+    const amounts = selected.map((item) => Number(item.priceText.replace(',', '.')));
     if (amounts.some((amount) => Number.isNaN(amount) || amount <= 0)) {
       setErrorMessage('Jonkin rivin summa ei kelpaa - tarkista rivien summat.');
       return;
@@ -196,7 +220,7 @@ export default function ReceiptScanScreen() {
 
     setStatus('saving');
     const { error } = await supabase.from('expenses').insert(
-      items.map((item, index) => ({
+      selected.map((item, index) => ({
         user_id: session.user.id,
         category_id: item.categoryId,
         amount: amounts[index],
@@ -292,33 +316,63 @@ export default function ReceiptScanScreen() {
                     Tuotteita ei tunnistettu kuitilta.
                   </ThemedText>
                 ) : (
-                  items.map((item) => (
-                    <ThemedView key={item.key} type="backgroundElement" style={styles.itemCard}>
-                      <View style={styles.itemHeaderRow}>
-                        <TextInput
-                          style={[styles.input, styles.itemNameInput]}
-                          value={item.name}
-                          onChangeText={(name) => setItemName(item.key, name)}
-                        />
-                        <TextInput
-                          style={[styles.input, styles.itemPriceInput]}
-                          keyboardType="decimal-pad"
-                          value={item.priceText}
-                          onChangeText={(priceText) => setItemPriceText(item.key, priceText)}
-                        />
-                        <Pressable onPress={() => removeItem(item.key)} hitSlop={Spacing.two}>
-                          <ThemedText type="small" themeColor="textSecondary">
-                            ✕
-                          </ThemedText>
-                        </Pressable>
-                      </View>
-                      <CategoryPicker
-                        categories={grouped}
-                        selectedCategoryId={item.categoryId}
-                        onSelect={(categoryId) => setItemCategory(item.key, categoryId)}
-                      />
-                    </ThemedView>
-                  ))
+                  <>
+                    <Pressable onPress={toggleAllChecked} style={styles.selectAllRow}>
+                      <Checkbox checked={allChecked} onToggle={toggleAllChecked} />
+                      <ThemedText type="small">Valitse kaikki</ThemedText>
+                    </Pressable>
+
+                    {items.map((item) => {
+                      const isEditing = editingKeys.has(item.key);
+                      return (
+                        <ThemedView key={item.key} type="backgroundElement" style={styles.itemCard}>
+                          <View style={styles.itemHeaderRow}>
+                            <Checkbox
+                              checked={item.checked}
+                              onToggle={() => toggleItemChecked(item.key)}
+                            />
+
+                            {isEditing ? (
+                              <>
+                                <TextInput
+                                  style={[styles.input, styles.itemNameInput]}
+                                  value={item.name}
+                                  onChangeText={(name) => setItemName(item.key, name)}
+                                />
+                                <TextInput
+                                  style={[styles.input, styles.itemPriceInput]}
+                                  keyboardType="decimal-pad"
+                                  value={item.priceText}
+                                  onChangeText={(priceText) => setItemPriceText(item.key, priceText)}
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <ThemedText
+                                  type="smallBold"
+                                  style={styles.itemNameText}
+                                  numberOfLines={1}>
+                                  {item.name}
+                                </ThemedText>
+                                <ThemedText type="smallBold">{item.priceText} €</ThemedText>
+                              </>
+                            )}
+
+                            <Pressable onPress={() => toggleEditing(item.key)} hitSlop={Spacing.two}>
+                              <ThemedText type="small" themeColor="textSecondary">
+                                {isEditing ? '✓' : '✏️'}
+                              </ThemedText>
+                            </Pressable>
+                          </View>
+                          <CategorySearchPicker
+                            categories={grouped}
+                            selectedCategoryId={item.categoryId}
+                            onSelect={(categoryId) => setItemCategory(item.key, categoryId)}
+                          />
+                        </ThemedView>
+                      );
+                    })}
+                  </>
                 )}
 
                 {errorMessage && (
@@ -401,6 +455,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     color: '#000000',
   },
+  selectAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
   itemCard: {
     borderRadius: Spacing.three,
     padding: Spacing.three,
@@ -410,6 +469,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  itemNameText: {
+    flex: 1,
   },
   itemNameInput: {
     flex: 1,
