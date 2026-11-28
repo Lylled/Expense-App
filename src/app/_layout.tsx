@@ -22,6 +22,9 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="receipt-scan" options={{ presentation: 'modal' }} />
         <Stack.Screen name="category-expenses" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings-profile" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings-theme" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings-receipts" options={{ presentation: 'modal' }} />
       </Stack.Protected>
     </Stack>
   );
