@@ -96,6 +96,18 @@ export function getPreviousRange(range: DateRange): DateRange {
   return { startIso: toIso(previousStart), endIso: toIso(previousEnd) };
 }
 
+/** How far into the range today is, 0-100 - a past range reads 100, a
+ * future one reads 0. For comparing budget pace against the calendar. */
+export function elapsedPercentage(range: DateRange): number {
+  const todayIso = toIso(new Date());
+  if (todayIso < range.startIso) return 0;
+  if (todayIso > range.endIso) return 100;
+
+  const totalDays = countDaysInRange(range);
+  const elapsedDays = countDaysInRange({ startIso: range.startIso, endIso: todayIso });
+  return (elapsedDays / totalDays) * 100;
+}
+
 export function formatPeriodLabel(kind: PeriodKind, range: DateRange): string {
   const start = fromIso(range.startIso);
   const end = fromIso(range.endIso);

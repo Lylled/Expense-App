@@ -7,11 +7,14 @@ import { ExpenseListItem } from '@/components/expense-list-item';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
+import { fetchBudgets, findBudgetAmount, removeBudget, setBudget, type Budget } from '@/lib/budgets';
 import { groupByParent, type Category } from '@/lib/categories';
 import { formatAmount, isoDateToFinnish, parseFinnishDate, type ExpenseWithCategory } from '@/lib/expenses';
 import {
   countDaysInRange,
+  elapsedPercentage,
   formatPeriodLabel,
   getPeriodRange,
   getPreviousRange,
@@ -36,6 +39,7 @@ const ALL_TIME_RANGE: DateRange = { startIso: '0001-01-01', endIso: '9999-12-31'
 
 export default function SummaryScreen() {
   const theme = useTheme();
+  const { session } = useAuth();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [periodKind, setPeriodKind] = useState<PeriodKind>('month');
@@ -47,6 +51,10 @@ export default function SummaryScreen() {
   const [previousExpenses, setPreviousExpenses] = useState<{ category_id: string; amount: number }[]>(
     []
   );
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [isEditingBudget, setIsEditingBudget] = useState(false);
+  const [budgetInputText, setBudgetInputText] = useState('');
+  const [budgetMessage, setBudgetMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -80,6 +88,21 @@ export default function SummaryScreen() {
         else setCategories((data ?? []) as Category[]);
       });
   }, []);
+
+  const fetchBudgetsList = useCallback(() => {
+    fetchBudgets().then(({ data, error }) => {
+      if (error) setErrorMessage(error);
+      else setBudgets(data);
+    });
+  }, []);
+
+  // Editing a budget is scoped to whichever category is currently shown -
+  // leaving an edit open when the user drills into a different one would
+  // otherwise silently apply to the wrong scope on save.
+  useEffect(() => {
+    setIsEditingBudget(false);
+    setBudgetMessage('');
+  }, [scopeCategoryId]);
 
   const fetchExpenses = useCallback(() => {
     if (!range) return;
@@ -126,7 +149,8 @@ export default function SummaryScreen() {
     useCallback(() => {
       fetchCategories();
       fetchExpenses();
-    }, [fetchCategories, fetchExpenses])
+      fetchBudgetsList();
+    }, [fetchCategories, fetchExpenses, fetchBudgetsList])
   );
 
   const total = totalForScope(grouped, expenses, scopeCategoryId);
@@ -143,6 +167,47 @@ export default function SummaryScreen() {
   const backLabel = backScopeId
     ? `← Takaisin: ${categories.find((category) => category.id === backScopeId)?.name ?? ''}`
     : '← Takaisin: Kaikki';
+
+  // Budgets are always a flat monthly amount, so the comparison only makes
+  // sense while viewing the "Kuukausi" period.
+  const budgetAmount = periodKind === 'month' ? findBudgetAmount(budgets, scopeCategoryId) : null;
+  const budgetSpentPercentage = budgetAmount ? (total / budgetAmount) * 100 : null;
+  const budgetElapsedPercentage = range && periodKind === 'month' ? elapsedPercentage(range) : null;
+
+  function startEditingBudget() {
+    setBudgetInputText(budgetAmount !== null ? String(budgetAmount) : '');
+    setBudgetMessage('');
+    setIsEditingBudget(true);
+  }
+
+  async function handleSaveBudget() {
+    const amountValue = Number(budgetInputText.replace(',', '.'));
+    if (!budgetInputText || Number.isNaN(amountValue) || amountValue <= 0) {
+      setBudgetMessage('Anna summa, joka on suurempi kuin 0.');
+      return;
+    }
+    if (!session) return;
+
+    const error = await setBudget(session.user.id, scopeCategoryId, amountValue);
+    if (error) {
+      setBudgetMessage(error);
+      return;
+    }
+
+    setIsEditingBudget(false);
+    fetchBudgetsList();
+  }
+
+  async function handleRemoveBudget() {
+    const error = await removeBudget(scopeCategoryId);
+    if (error) {
+      setBudgetMessage(error);
+      return;
+    }
+
+    setIsEditingBudget(false);
+    fetchBudgetsList();
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -244,6 +309,75 @@ export default function SummaryScreen() {
                   </ThemedText>
                 )}
               </ThemedView>
+
+              {periodKind === 'month' && (
+                <ThemedView type="backgroundElement" style={styles.budgetCard}>
+                  <ThemedText type="smallBold">Budjetti - {scopeName}</ThemedText>
+
+                  {budgetMessage && <ThemedText type="small">{budgetMessage}</ThemedText>}
+
+                  {isEditingBudget ? (
+                    <>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Budjetti (€ / kk)"
+                        placeholderTextColor="#8A8A8E"
+                        keyboardType="decimal-pad"
+                        value={budgetInputText}
+                        onChangeText={setBudgetInputText}
+                        autoFocus
+                      />
+                      <View style={styles.budgetEditActions}>
+                        <Pressable
+                          onPress={handleSaveBudget}
+                          style={[styles.budgetSaveButton, { backgroundColor: theme.backgroundSelected }]}>
+                          <ThemedText type="small">Tallenna</ThemedText>
+                        </Pressable>
+                        {budgetAmount !== null && (
+                          <Pressable onPress={handleRemoveBudget}>
+                            <ThemedText type="small" themeColor="textSecondary">
+                              Poista budjetti
+                            </ThemedText>
+                          </Pressable>
+                        )}
+                        <Pressable onPress={() => setIsEditingBudget(false)}>
+                          <ThemedText type="small" themeColor="textSecondary">
+                            Peruuta
+                          </ThemedText>
+                        </Pressable>
+                      </View>
+                    </>
+                  ) : budgetAmount !== null ? (
+                    <>
+                      <View style={styles.breakdownBarTrack}>
+                        <View
+                          style={[
+                            styles.breakdownBarFill,
+                            { width: `${Math.min(budgetSpentPercentage ?? 0, 100)}%` },
+                            (budgetSpentPercentage ?? 0) > 100 && styles.budgetBarOverBudget,
+                          ]}
+                        />
+                      </View>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {formatAmount(total)} / {formatAmount(budgetAmount)} (
+                        {(budgetSpentPercentage ?? 0).toFixed(0)} % käytetty) - kuukaudesta kulunut{' '}
+                        {(budgetElapsedPercentage ?? 0).toFixed(0)} %
+                      </ThemedText>
+                      <Pressable onPress={startEditingBudget}>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Muokkaa budjettia
+                        </ThemedText>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Pressable onPress={startEditingBudget}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        + Aseta budjetti
+                      </ThemedText>
+                    </Pressable>
+                  )}
+                </ThemedView>
+              )}
 
               {total === 0 && (
                 <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
@@ -413,5 +547,23 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 3,
     backgroundColor: '#208AEF',
+  },
+  budgetCard: {
+    borderRadius: Spacing.three,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  budgetEditActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  budgetSaveButton: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: Spacing.five,
+  },
+  budgetBarOverBudget: {
+    backgroundColor: '#D64545',
   },
 });

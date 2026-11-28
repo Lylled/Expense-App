@@ -26,10 +26,10 @@ Mobiilisovellus kuittikuvien perusteella tapahtuvaan kulutusseurantaan. Käyttä
 - Manuaalinen menon lisäys, muokkaus ja poisto; luokan valinta pudotusvalikolla (pääluokka → alaluokka)
 - Kuitin skannaus ja tekoälypohjainen jäsennys (kauppa, päivämäärä, tuotteet, hinnat), jokaisen rivin nimen/hinnan korjaaminen ja luokan valinta ennen tallennusta, ja jäsennetyn kuitin jokaisen rivin tallentaminen menoksi omaan luokkaansa
 - Kulutuskoosteet (Koosteet-välilehti): viikko/kuukausi/vuosi/mukautettu/koko aika, vertailu edelliseen jaksoon, luokkaerittely jota voi porautua (pääluokka → alaluokka), ja sama kooste skoopattuna mihin tahansa yksittäiseen luokkaan
+- Kuukausibudjetit koko taloudelle ja/tai millä tahansa (pää- tai ala)luokalle: Koosteet-näkymässä (kuukausinäkymässä) näkyy budjetin käyttöaste ja kuinka suuri osa kuukaudesta on kulunut
 - Asetukset-välilehti: uloskirjautuminen, salasanan vaihto, tilin pysyvä poisto (Edge Function, kaskadoi kaikki käyttäjän datan), teeman valinta (vaalea/tumma/järjestelmä), ja valinta minne kuitin kuva tallennetaan kuvauksen jälkeen (ei tallenneta / sovelluksen muisti / puhelimen muisti) — "sovelluksen muisti" -valinnalla kuvan voi myös katsoa jälkikäteen menolistassa
 
 **Seuraavaksi** (tarkempi backlog [GitHub-issueissa](../../issues)):
-- Luokkaehdotukset kuitin riveille aiempien tallennusten perusteella
 - Kulutuksen Excel/CSV-export
 - Jaettu talous toisen käyttäjän kanssa, ja muu backlogissa listattu
 
