@@ -40,6 +40,23 @@ type AiParsedReceipt = {
   total: number | null;
 };
 
+// supabase-js's own error.message for a failed Edge Function call is just
+// "Edge Function returned a non-2xx status code" - the function's own
+// { error: "..." } response body (its actual, useful detail) is only
+// reachable via error.context, the raw Response.
+async function describeFunctionError(error: unknown): Promise<string> {
+  const context = (error as { context?: unknown } | null)?.context;
+  if (context instanceof Response) {
+    try {
+      const body = await context.clone().json();
+      if (body && typeof body.error === 'string') return body.error;
+    } catch {
+      // Response body wasn't JSON - fall through to the generic message.
+    }
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 export default function ReceiptScanScreen() {
   const { session } = useAuth();
   const theme = useTheme();
@@ -86,7 +103,7 @@ export default function ReceiptScanScreen() {
       });
 
       if (error || !data) {
-        throw new Error(error?.message ?? 'Kuitin lukeminen epäonnistui.');
+        throw new Error(error ? await describeFunctionError(error) : 'Kuitin lukeminen epäonnistui.');
       }
 
       setStoreName(data.storeName);
