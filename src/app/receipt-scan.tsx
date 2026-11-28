@@ -14,7 +14,7 @@ import {
 import DocumentScanner, { ScanDocumentResponseStatus } from 'react-native-document-scanner-plugin';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CategoryDropdown } from '@/components/category-dropdown';
+import { CategoryPicker } from '@/components/category-picker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Collapsible } from '@/components/ui/collapsible';
@@ -31,7 +31,7 @@ type Status = 'idle' | 'scanning' | 'recognizing' | 'reviewing' | 'saving' | 'er
 type ReviewItem = {
   key: string;
   name: string;
-  price: number;
+  priceText: string;
   categoryId: string | null;
 };
 
@@ -85,7 +85,7 @@ export default function ReceiptScanScreen() {
         parsed.items.map((item, index) => ({
           key: String(index),
           name: item.name,
-          price: item.price,
+          priceText: item.price.toFixed(2).replace('.', ','),
           categoryId: null,
         }))
       );
@@ -114,6 +114,14 @@ export default function ReceiptScanScreen() {
     setItems((current) => current.map((item) => (item.key === key ? { ...item, categoryId } : item)));
   }
 
+  function setItemName(key: string, name: string) {
+    setItems((current) => current.map((item) => (item.key === key ? { ...item, name } : item)));
+  }
+
+  function setItemPriceText(key: string, priceText: string) {
+    setItems((current) => current.map((item) => (item.key === key ? { ...item, priceText } : item)));
+  }
+
   async function handleSave() {
     setErrorMessage('');
 
@@ -133,15 +141,21 @@ export default function ReceiptScanScreen() {
       return;
     }
 
+    const amounts = items.map((item) => Number(item.priceText.replace(',', '.')));
+    if (amounts.some((amount) => Number.isNaN(amount) || amount <= 0)) {
+      setErrorMessage('Jonkin rivin summa ei kelpaa - tarkista rivien summat.');
+      return;
+    }
+
     if (!session) return;
 
     setStatus('saving');
     const { error } = await supabase.from('expenses').insert(
-      items.map((item) => ({
+      items.map((item, index) => ({
         user_id: session.user.id,
         category_id: item.categoryId,
-        amount: item.price,
-        description: item.name,
+        amount: amounts[index],
+        description: item.name.trim(),
         expense_date: isoDate,
       }))
     );
@@ -234,17 +248,24 @@ export default function ReceiptScanScreen() {
                   items.map((item) => (
                     <ThemedView key={item.key} type="backgroundElement" style={styles.itemCard}>
                       <View style={styles.itemHeaderRow}>
-                        <ThemedText type="smallBold" style={styles.itemName} numberOfLines={1}>
-                          {item.name}
-                        </ThemedText>
-                        <ThemedText type="smallBold">{item.price.toFixed(2)} €</ThemedText>
+                        <TextInput
+                          style={[styles.input, styles.itemNameInput]}
+                          value={item.name}
+                          onChangeText={(name) => setItemName(item.key, name)}
+                        />
+                        <TextInput
+                          style={[styles.input, styles.itemPriceInput]}
+                          keyboardType="decimal-pad"
+                          value={item.priceText}
+                          onChangeText={(priceText) => setItemPriceText(item.key, priceText)}
+                        />
                         <Pressable onPress={() => removeItem(item.key)} hitSlop={Spacing.two}>
                           <ThemedText type="small" themeColor="textSecondary">
                             ✕
                           </ThemedText>
                         </Pressable>
                       </View>
-                      <CategoryDropdown
+                      <CategoryPicker
                         categories={grouped}
                         selectedCategoryId={item.categoryId}
                         onSelect={(categoryId) => setItemCategory(item.key, categoryId)}
@@ -349,7 +370,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
-  itemName: {
+  itemNameInput: {
     flex: 1,
+  },
+  itemPriceInput: {
+    width: 80,
   },
 });
