@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { findSelectedName } from '@/components/category-dropdown.shared';
+import { findSelectedName, flattenCategories } from '@/components/category-dropdown.shared';
 import { CategorySearchPicker } from '@/components/category-search-picker';
 import { Checkbox } from '@/components/checkbox';
 import { ThemedText } from '@/components/themed-text';
@@ -39,9 +39,29 @@ type ReviewItem = {
 type AiParsedReceipt = {
   storeName: string | null;
   date: string | null;
-  items: { name: string; price: number }[];
+  items: { name: string; price: number; suggestedCategoryId?: string | null }[];
   total: number | null;
 };
+
+type HistoryEntry = { description: string; categoryId: string };
+
+// Keeps only the most recent entry per distinct product description (the AI
+// prompt weighs these as precedent for category suggestions), capped so the
+// prompt doesn't grow unbounded as the user's expense history grows.
+function dedupeHistory(rows: { description: string | null; category_id: string }[]): HistoryEntry[] {
+  const seen = new Set<string>();
+  const result: HistoryEntry[] = [];
+  for (const row of rows) {
+    const description = row.description?.trim();
+    if (!description) continue;
+    const key = description.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ description, categoryId: row.category_id });
+    if (result.length >= 150) break;
+  }
+  return result;
+}
 
 // supabase-js's own error.message for a failed Edge Function call is always
 // just "Edge Function returned a non-2xx status code" - the actual detail
@@ -84,6 +104,7 @@ export default function ReceiptScanScreen() {
   const theme = useTheme();
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string | null>(null);
   const [dateText, setDateText] = useState(todayAsFinnishDate());
@@ -93,13 +114,23 @@ export default function ReceiptScanScreen() {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    supabase
-      .from('categories')
-      .select('*')
-      .then(({ data, error }) => {
-        if (error) setErrorMessage(error.message);
-        else setCategories((data ?? []) as Category[]);
-      });
+    Promise.all([
+      supabase.from('categories').select('*'),
+      // Recent purchases, newest first - sent along with the scan so the AI
+      // can suggest "same product -> same category as last time" (see
+      // dedupeHistory), weighed above guessing from category names alone.
+      supabase
+        .from('expenses')
+        .select('description, category_id')
+        .order('created_at', { ascending: false })
+        .limit(500),
+    ]).then(([categoriesResult, expensesResult]) => {
+      if (categoriesResult.error) setErrorMessage(categoriesResult.error.message);
+      else setCategories((categoriesResult.data ?? []) as Category[]);
+
+      if (expensesResult.error) setErrorMessage(expensesResult.error.message);
+      else setHistory(dedupeHistory(expensesResult.data ?? []));
+    });
   }, []);
 
   const grouped = groupByParent(categories);
@@ -130,13 +161,16 @@ export default function ReceiptScanScreen() {
       setStatus('recognizing');
 
       const imageBase64 = await new File(uri).base64();
+      const categoryOptions = flattenCategories(grouped);
       const { data, error } = await supabase.functions.invoke<AiParsedReceipt>('parse-receipt', {
-        body: { imageBase64, mimeType: 'image/jpeg' },
+        body: { imageBase64, mimeType: 'image/jpeg', categories: categoryOptions, history },
       });
 
       if (error || !data) {
         throw new Error(error ? await describeFunctionError(error) : 'Kuitin lukeminen epäonnistui.');
       }
+
+      const validCategoryIds = new Set(categoryOptions.map((option) => option.id));
 
       setStoreName(data.storeName);
       setDateText(data.date ?? todayAsFinnishDate());
@@ -145,7 +179,10 @@ export default function ReceiptScanScreen() {
           key: String(index),
           name: item.name,
           priceText: item.price.toFixed(2).replace('.', ','),
-          categoryId: null,
+          categoryId:
+            item.suggestedCategoryId && validCategoryIds.has(item.suggestedCategoryId)
+              ? item.suggestedCategoryId
+              : null,
           checked: true,
         }))
       );

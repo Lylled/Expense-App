@@ -19,3 +19,22 @@ export function findSelectedName(
   }
   return null;
 }
+
+export type FlatCategoryOption = {
+  id: string;
+  label: string;
+};
+
+// Flattens pääluokka/alaluokka into a single list of {id, label} pairs
+// ("KOTI", "KOTI › Ruoka", ...) - shared between CategorySearchPicker's
+// search list and the AI category-suggestion payload sent to parse-receipt.
+export function flattenCategories(categories: CategoryWithChildren[]): FlatCategoryOption[] {
+  const options: FlatCategoryOption[] = [];
+  for (const category of categories) {
+    options.push({ id: category.id, label: category.name });
+    for (const child of category.children) {
+      options.push({ id: child.id, label: `${category.name} › ${child.name}` });
+    }
+  }
+  return options;
+}

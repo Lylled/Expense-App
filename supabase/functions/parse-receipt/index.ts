@@ -1,12 +1,13 @@
 // Supabase Edge Function: parse-receipt
 //
 // Sends a receipt photo to Gemini's vision API and returns structured
-// store/date/items/total data. Replaces on-device OCR + heuristic row
-// reconstruction (src/lib/parse-receipt.ts) for the receipt-scan screen:
-// a vision model reads the whole receipt holistically instead of
-// reassembling rows from OCR bounding boxes, which was unreliable
-// whenever a row's name and price landed in slightly different
-// positions (see issue discussion - it mixed up adjacent items' prices).
+// store/date/items/total data, plus a suggested category per item when the
+// caller provides the user's category list and recent purchase history.
+// Replaces on-device OCR + heuristic row reconstruction (src/lib/parse-receipt.ts,
+// now removed) for the receipt-scan screen: a vision model reads the whole
+// receipt holistically instead of reassembling rows from OCR bounding boxes,
+// which was unreliable whenever a row's name and price landed in slightly
+// different positions.
 //
 // Deploy via the Supabase Dashboard (Edge Functions -> Deploy a new
 // function, paste this file) or `supabase functions deploy parse-receipt`.
@@ -16,7 +17,7 @@
 
 const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-flash-lite-latest';
 
-const PROMPT = `Olet kuitintunnistusavustaja. Saat kuvan suomalaisesta kauppakuitista. Lue kuva tarkasti ja poimi siitä tiedot alla kuvatun skeeman mukaisesti.
+const BASE_PROMPT = `Olet kuitintunnistusavustaja. Saat kuvan suomalaisesta kauppakuitista. Lue kuva tarkasti ja poimi siitä tiedot alla kuvatun skeeman mukaisesti.
 
 Säännöt:
 - "items" sisältää VAIN oikeasti ostetut tuotteet hintoineen, EI seuraavia: ALV-erittelyt, yhteenveto-/summarivit ("YHTEENSÄ", "SUMMA"), maksutapahtuman tiedot (kortti, viite, tapahtumanumero), kanta-asiakastiedot, pyöristysrivit, palautusehdot tai muu kuittiin painettu lisäteksti.
@@ -24,7 +25,8 @@ Säännöt:
 - Jos tuotteen alla on oma rivi "2 KPL" ja "2,99 €/KPL" -tyyliin, sama koskee sitä: älä lisää omaksi riviksi.
 - Jos kuitilla on erillinen alennusrivi (esim. "PLUSSAETU" tai muu alennus), vähennä sen summa edellisen tuotteen hinnasta äläkä lisää alennusta omaksi riviksi.
 - "date" on muodossa pp.kk.vvvv.
-- Jos et pysty lukemaan jotain kohtaa luotettavasti, tee paras arvauksesi äläkä jätä riviä pois - käyttäjä voi korjata virheet käsin jälkeenpäin.`;
+- Jos et pysty lukemaan jotain kohtaa luotettavasti, tee paras arvauksesi äläkä jätä riviä pois - käyttäjä voi korjata virheet käsin jälkeenpäin.
+- "suggestedCategoryId" jokaiselle tuotteelle: ehdota sopivin luokka, jos luokkalista annetaan alla. Jätä null jos luokkalistaa ei annettu tai et ole riittävän varma.`;
 
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
@@ -38,6 +40,7 @@ const RESPONSE_SCHEMA = {
         properties: {
           name: { type: 'STRING' },
           price: { type: 'NUMBER' },
+          suggestedCategoryId: { type: 'STRING', nullable: true },
         },
         required: ['name', 'price'],
       },
@@ -46,6 +49,28 @@ const RESPONSE_SCHEMA = {
   },
   required: ['items'],
 };
+
+type CategoryOption = { id: string; label: string };
+type HistoryEntry = { description: string; categoryId: string };
+
+type RequestBody = {
+  imageBase64?: string;
+  mimeType?: string;
+  categories?: CategoryOption[];
+  history?: HistoryEntry[];
+};
+
+function buildCategorySection(categories: CategoryOption[]): string {
+  if (!categories.length) return '';
+  const lines = categories.map((c) => `${c.id}: ${c.label}`).join('\n');
+  return `\n\nKäytettävissä olevat luokat (id: nimi). Anna "suggestedCategoryId"-kenttään jokin näistä id-arvoista, tai null:\n${lines}`;
+}
+
+function buildHistorySection(history: HistoryEntry[]): string {
+  if (!history.length) return '';
+  const lines = history.map((h) => `"${h.description}" -> ${h.categoryId}`).join('\n');
+  return `\n\nKäyttäjän aiemmin tallentamia tuote -> luokka-id -pareja (uusimmat ensin). Painota näitä VOIMAKKAASTI luokkien nimiin perustuvan päättelyn sijaan: jos uusi tuote on sama tai hyvin samankaltainen kuin jokin näistä, käytä samaa luokkaa kuin silloin. Käytä luokkien nimiä vain jos sopivaa vastaavuutta ei löydy täältä:\n${lines}`;
+}
 
 function jsonResponse(body: unknown, status: number) {
   return new Response(JSON.stringify(body), {
@@ -64,7 +89,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'GEMINI_API_KEY ei ole asetettu palvelimelle.' }, 500);
   }
 
-  let body: { imageBase64?: string; mimeType?: string };
+  let body: RequestBody;
   try {
     body = await req.json();
   } catch {
@@ -75,6 +100,11 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'imageBase64 puuttuu pyynnöstä.' }, 400);
   }
 
+  const prompt =
+    BASE_PROMPT +
+    buildCategorySection(body.categories ?? []) +
+    buildHistorySection(body.history ?? []);
+
   const geminiResponse = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
     {
@@ -84,7 +114,7 @@ Deno.serve(async (req) => {
         contents: [
           {
             parts: [
-              { text: PROMPT },
+              { text: prompt },
               {
                 inline_data: {
                   mime_type: body.mimeType ?? 'image/jpeg',

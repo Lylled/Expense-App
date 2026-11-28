@@ -2,7 +2,11 @@ import { useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, TextInput } from 'react-native';
 
 import { categoryDropdownStyles as triggerStyles } from '@/components/category-dropdown.styles';
-import { findSelectedName, type CategoryDropdownProps } from '@/components/category-dropdown.shared';
+import {
+  findSelectedName,
+  flattenCategories,
+  type CategoryDropdownProps,
+} from '@/components/category-dropdown.shared';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -15,22 +19,10 @@ type FlatOption = {
 };
 
 function flattenForSearch(categories: CategoryWithChildren[]): FlatOption[] {
-  const options: FlatOption[] = [];
-  for (const category of categories) {
-    options.push({
-      id: category.id,
-      label: category.name,
-      searchText: category.name.toLowerCase(),
-    });
-    for (const child of category.children) {
-      options.push({
-        id: child.id,
-        label: `${category.name} › ${child.name}`,
-        searchText: `${category.name} ${child.name}`.toLowerCase(),
-      });
-    }
-  }
-  return options;
+  return flattenCategories(categories).map((option) => ({
+    ...option,
+    searchText: option.label.toLowerCase(),
+  }));
 }
 
 type Row =
