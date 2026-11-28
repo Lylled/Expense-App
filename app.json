@@ -36,7 +36,7 @@
       ],
       "expo-sqlite",
       [
-        "react-native-document-scanner-plugin",
+        "expo-image-picker",
         {
           "cameraPermission": "Sovellus käyttää kameraa kuittien kuvaamiseen"
         }

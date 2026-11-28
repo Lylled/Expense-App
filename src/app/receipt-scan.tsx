@@ -1,5 +1,6 @@
 import { File } from 'expo-file-system';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -11,7 +12,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import DocumentScanner, { ScanDocumentResponseStatus } from 'react-native-document-scanner-plugin';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategorySearchPicker } from '@/components/category-search-picker';
@@ -106,16 +106,25 @@ export default function ReceiptScanScreen() {
   async function handleScan() {
     try {
       setStatus('scanning');
-      // Opens the native scanner UI: it live-detects the receipt's edges and
-      // returns an already cropped + perspective-corrected (deskewed) photo,
-      // so the model sees a flat rectangle regardless of the capture angle.
-      const { scannedImages, status: scanStatus } = await DocumentScanner.scanDocument();
-      if (scanStatus !== ScanDocumentResponseStatus.Success || !scannedImages?.length) {
+
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        setErrorMessage('Kameran käyttöoikeus puuttuu.');
+        setStatus('error');
+        return;
+      }
+
+      // A plain camera photo, not a cropped/deskewed scan: the AI model reads
+      // the whole image directly and copes with background and skew far
+      // better than the old OCR + row-reconstruction pipeline did, so the
+      // document scanner's slower edge-detection UI isn't worth it anymore.
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+      if (result.canceled || !result.assets.length) {
         setStatus('idle');
         return;
       }
 
-      const uri = scannedImages[0];
+      const uri = result.assets[0].uri;
       setPhotoUri(uri);
       setStatus('recognizing');
 
@@ -249,9 +258,9 @@ export default function ReceiptScanScreen() {
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
           {closeButton}
-          <ThemedText type="subtitle">Skannaa kuitti</ThemedText>
+          <ThemedText type="subtitle">Kuvaa kuitti</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
-            Kuitinskannaus toimii vain natiivissa Android- tai iOS-kehitysversiossa, ei webissä.
+            Kuitin kuvaaminen toimii vain natiivissa Android- tai iOS-kehitysversiossa, ei webissä.
           </ThemedText>
         </SafeAreaView>
       </ThemedView>
@@ -265,16 +274,16 @@ export default function ReceiptScanScreen() {
 
         {!photoUri && (
           <>
-            <ThemedText type="subtitle">Skannaa kuitti</ThemedText>
+            <ThemedText type="subtitle">Kuvaa kuitti</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
-              Avaa skanneri, aseta kuitti kehyksen sisään ja ota kuva. Skanneri rajaa ja
-              suoristaa kuvan automaattisesti, minkä jälkeen tekoäly lukee kuitin sisällön.
+              Ota kuva kuitista niin, että koko kuitti näkyy kuvassa. Tekoäly lukee kuvan
+              sellaisenaan, joten kuvaa ei tarvitse rajata tai suoristaa erikseen.
             </ThemedText>
             <Pressable
               style={[styles.button, { backgroundColor: theme.backgroundElement }]}
               onPress={handleScan}
               disabled={status === 'scanning'}>
-              <ThemedText type="smallBold">Skannaa kuitti</ThemedText>
+              <ThemedText type="smallBold">Ota kuva</ThemedText>
             </Pressable>
             {status === 'scanning' && <ActivityIndicator />}
             {status === 'error' && (
@@ -393,7 +402,7 @@ export default function ReceiptScanScreen() {
                 <Pressable
                   style={[styles.button, { backgroundColor: theme.backgroundElement }]}
                   onPress={handleReset}>
-                  <ThemedText type="smallBold">Skannaa uusi kuitti</ThemedText>
+                  <ThemedText type="smallBold">Ota uusi kuva</ThemedText>
                 </Pressable>
               </>
             )}

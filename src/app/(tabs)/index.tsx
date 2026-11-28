@@ -62,7 +62,7 @@ export default function HomeScreen() {
         <Link href="/receipt-scan" asChild>
           <Pressable style={({ pressed }) => pressed && styles.pressed}>
             <ThemedView type="backgroundElement" style={styles.ocrButton}>
-              <ThemedText type="link">Skannaa kuitti</ThemedText>
+              <ThemedText type="link">Kuvaa kuitti</ThemedText>
             </ThemedView>
           </Pressable>
         </Link>

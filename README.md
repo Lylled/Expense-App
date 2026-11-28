@@ -15,8 +15,8 @@ Mobiilisovellus kuittikuvien perusteella tapahtuvaan kulutusseurantaan. Käyttä
 
 - **Alusta:** Expo / React Native, TypeScript, Expo Router -reititys. Kohdealustana tällä hetkellä Android (iOS/web eivät vielä testattuja osiltaan, jotka käyttävät natiivimoduuleja)
 - **Taustapalvelu:** [Supabase](https://supabase.com) — PostgreSQL-tietokanta, autentikointi, Row Level Security -säännöt per käyttäjä sekä Edge Functions palvelinpuolen logiikkaan
-- **Kuitin skannaus:** natiivi dokumenttiskanneri (`react-native-document-scanner-plugin`, pohjautuu Googlen ML Kit Document Scanneriin) rajaa ja suoristaa (deskew) kuitin kuvasta automaattisesti ennen jäsennystä
-- **Kuitin jäsennys (tekoäly):** skannattu kuitti lähetetään Supabase Edge Functionin (`supabase/functions/parse-receipt`) kautta Googlen Gemini-näkömallille, joka lukee kuvan kokonaisuutena ja palauttaa jäsennetyn tuloksen (kauppa, päivämäärä, tuotteet hintoineen) — tarkempi kuin laitteella tehty tekstintunnistus + itse rakennettu rivinyhdistelylogiikka, joka sekoitti helposti vierekkäisten rivien hinnat jos kuva oli vähänkin vino. API-avain pysyy Edge Functionin puolella, ei koskaan mobiilisovelluksessa
+- **Kuitin kuvaaminen:** tavallinen kamerakuva (`expo-image-picker`) — ei erillistä rajausta/suoristusta, koska tekoälypohjainen jäsennys lukee kuvan sellaisenaan eikä tarvitse niitä (ks. seuraava kohta). Aiemmin käytössä ollut natiivi dokumenttiskanneri (`react-native-document-scanner-plugin`) poistettiin: sen reunantunnistus oli hidas ja epäluotettava varsinkin vaaleaa taustaa vasten, eikä sen tekemä rajaus/suoristus tuonut enää hyötyä
+- **Kuitin jäsennys (tekoäly):** kuva lähetetään Supabase Edge Functionin (`supabase/functions/parse-receipt`) kautta Googlen Gemini-näkömallille, joka lukee kuvan kokonaisuutena ja palauttaa jäsennetyn tuloksen (kauppa, päivämäärä, tuotteet hintoineen) — tarkempi kuin aiempi laitteella tehty tekstintunnistus + itse rakennettu rivinyhdistelylogiikka, joka sekoitti helposti vierekkäisten rivien hinnat jos kuva oli vähänkin vino. API-avain pysyy Edge Functionin puolella, ei koskaan mobiilisovelluksessa
 
 ## Tilanne nyt
 
@@ -33,9 +33,9 @@ Mobiilisovellus kuittikuvien perusteella tapahtuvaan kulutusseurantaan. Käyttä
 
 ## Tiedossa olevat rajoitukset
 
-- Kuitin skannaus vaatii verkkoyhteyden (tekoälykutsu), eikä toimi enää täysin offline kuten aiempi laitteella tehty tekstintunnistus.
+- Kuitin kuvaaminen vaatii verkkoyhteyden (tekoälykutsu), eikä toimi täysin offline kuten aiempi laitteella tehty tekstintunnistus.
 - Tekoälyjäsennys voi silti mennä harvoin pieleen esim. hyvin huonolaatuisella tai rypistyneellä kuitilla — siksi jokaisen rivin nimen, hinnan ja luokan voi tarkistaa ja korjata ennen tallennusta.
-- Natiivi Jetpack Compose -pudotusvalikko (Android) osoittautui epäluotettavaksi kosketukselle, kun ruudulla on monta samanlaista valikkoa yhtä aikaa (esim. yksi per kuitin rivi) — tällaisissa näkymissä käytetään sen sijaan tavallista käyttöjärjestelmän omaa valinta-ikkunaa (ks. `src/components/category-picker.tsx`).
+- Natiivi Jetpack Compose -pudotusvalikko (Android) osoittautui epäluotettavaksi kosketukselle, kun ruudulla on monta samanlaista valikkoa yhtä aikaa (esim. yksi per kuitin rivi) — tällaisissa näkymissä käytetään sen sijaan tavallista React Nativen omaa Modal-ikkunaa, jossa on myös hakukenttä (ks. `src/components/category-search-picker.tsx`).
 
 ## Kehitysympäristön pystytys
 
