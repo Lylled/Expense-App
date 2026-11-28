@@ -32,12 +32,24 @@ function flattenForSearch(categories: CategoryDropdownProps['categories']): Flat
   return options;
 }
 
+export type CategorySearchPickerProps = CategoryDropdownProps & {
+  // Overrides the trigger's label instead of deriving it from
+  // selectedCategoryId - for a bulk-assign trigger ("Aseta luokka
+  // valituille"), there's no single current value to show.
+  triggerLabel?: string;
+};
+
 // A searchable alternative to CategoryDropdown/CategoryPicker for screens
 // that show many of these side by side (e.g. one per parsed receipt line):
 // it's a plain RN Modal, not a native Host, so there's no limit on how many
 // can be mounted on screen at once, and it adds a search field to narrow
 // down a long category list.
-export function CategorySearchPicker({ categories, selectedCategoryId, onSelect }: CategoryDropdownProps) {
+export function CategorySearchPicker({
+  categories,
+  selectedCategoryId,
+  onSelect,
+  triggerLabel,
+}: CategorySearchPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -47,7 +59,7 @@ export function CategorySearchPicker({ categories, selectedCategoryId, onSelect 
     return needle ? options.filter((option) => option.searchText.includes(needle)) : options;
   }, [options, query]);
 
-  const label = findSelectedName(categories, selectedCategoryId) ?? 'Valitse luokka';
+  const label = triggerLabel ?? findSelectedName(categories, selectedCategoryId) ?? 'Valitse luokka';
 
   function handleSelect(id: string) {
     onSelect(id);

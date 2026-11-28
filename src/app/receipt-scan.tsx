@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { findSelectedName } from '@/components/category-dropdown.shared';
 import { CategorySearchPicker } from '@/components/category-search-picker';
 import { Checkbox } from '@/components/checkbox';
 import { ThemedText } from '@/components/themed-text';
@@ -165,8 +166,14 @@ export default function ReceiptScanScreen() {
     setStatus('idle');
   }
 
-  function setItemCategory(key: string, categoryId: string) {
-    setItems((current) => current.map((item) => (item.key === key ? { ...item, categoryId } : item)));
+  // Assigns one category to every currently checked row at once - the
+  // common case is that a whole receipt belongs to a single category.
+  // For a mixed receipt: check the rows for category A, assign it, then
+  // adjust which rows are checked to the rest and assign a different one.
+  // Re-running this on an already-categorized row (checked again on its
+  // own) simply overwrites it, which doubles as "fix a wrong category".
+  function assignCategoryToChecked(categoryId: string) {
+    setItems((current) => current.map((item) => (item.checked ? { ...item, categoryId } : item)));
   }
 
   function setItemName(key: string, name: string) {
@@ -184,6 +191,7 @@ export default function ReceiptScanScreen() {
   }
 
   const allChecked = items.length > 0 && items.every((item) => item.checked);
+  const checkedCount = items.filter((item) => item.checked).length;
 
   function toggleAllChecked() {
     const nextChecked = !allChecked;
@@ -331,8 +339,18 @@ export default function ReceiptScanScreen() {
                       <ThemedText type="small">Valitse kaikki</ThemedText>
                     </Pressable>
 
+                    <CategorySearchPicker
+                      categories={grouped}
+                      selectedCategoryId={null}
+                      onSelect={assignCategoryToChecked}
+                      triggerLabel={`Aseta luokka valituille (${checkedCount}/${items.length})`}
+                    />
+
                     {items.map((item) => {
                       const isEditing = editingKeys.has(item.key);
+                      const categoryName = item.categoryId
+                        ? (findSelectedName(grouped, item.categoryId) ?? 'Luokka poistettu')
+                        : 'Ei luokkaa';
                       return (
                         <ThemedView key={item.key} type="backgroundElement" style={styles.itemCard}>
                           <View style={styles.itemHeaderRow}>
@@ -373,11 +391,9 @@ export default function ReceiptScanScreen() {
                               </ThemedText>
                             </Pressable>
                           </View>
-                          <CategorySearchPicker
-                            categories={grouped}
-                            selectedCategoryId={item.categoryId}
-                            onSelect={(categoryId) => setItemCategory(item.key, categoryId)}
-                          />
+                          <ThemedText type="small" themeColor="textSecondary">
+                            Luokka: {categoryName}
+                          </ThemedText>
                         </ThemedView>
                       );
                     })}
