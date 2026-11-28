@@ -172,8 +172,16 @@ export default function ReceiptScanScreen() {
   // adjust which rows are checked to the rest and assign a different one.
   // Re-running this on an already-categorized row (checked again on its
   // own) simply overwrites it, which doubles as "fix a wrong category".
+  // "checked" only drives this bulk assignment, nothing else - whether a
+  // row ends up saved depends only on whether it has a category (below),
+  // so leaving some rows unchecked after an assignment round never drops
+  // them from the save.
   function assignCategoryToChecked(categoryId: string) {
     setItems((current) => current.map((item) => (item.checked ? { ...item, categoryId } : item)));
+  }
+
+  function removeItem(key: string) {
+    setItems((current) => current.filter((item) => item.key !== key));
   }
 
   function setItemName(key: string, name: string) {
@@ -210,9 +218,8 @@ export default function ReceiptScanScreen() {
   async function handleSave() {
     setErrorMessage('');
 
-    const selected = items.filter((item) => item.checked);
-    if (selected.length === 0) {
-      setErrorMessage('Valitse vähintään yksi meno.');
+    if (items.length === 0) {
+      setErrorMessage('Ei tallennettavia rivejä.');
       return;
     }
 
@@ -222,12 +229,12 @@ export default function ReceiptScanScreen() {
       return;
     }
 
-    if (selected.some((item) => !item.categoryId)) {
-      setErrorMessage('Valitse luokka jokaiselle valitulle riville.');
+    if (items.some((item) => !item.categoryId)) {
+      setErrorMessage('Valitse luokka jokaiselle riville.');
       return;
     }
 
-    const amounts = selected.map((item) => Number(item.priceText.replace(',', '.')));
+    const amounts = items.map((item) => Number(item.priceText.replace(',', '.')));
     if (amounts.some((amount) => Number.isNaN(amount) || amount <= 0)) {
       setErrorMessage('Jonkin rivin summa ei kelpaa - tarkista rivien summat.');
       return;
@@ -237,7 +244,7 @@ export default function ReceiptScanScreen() {
 
     setStatus('saving');
     const { error } = await supabase.from('expenses').insert(
-      selected.map((item, index) => ({
+      items.map((item, index) => ({
         user_id: session.user.id,
         category_id: item.categoryId,
         amount: amounts[index],
@@ -391,9 +398,16 @@ export default function ReceiptScanScreen() {
                               </ThemedText>
                             </Pressable>
                           </View>
-                          <ThemedText type="small" themeColor="textSecondary">
-                            Luokka: {categoryName}
-                          </ThemedText>
+                          <View style={styles.itemFooterRow}>
+                            <ThemedText type="small" themeColor="textSecondary">
+                              Luokka: {categoryName}
+                            </ThemedText>
+                            <Pressable onPress={() => removeItem(item.key)} hitSlop={Spacing.two}>
+                              <ThemedText type="small" themeColor="textSecondary">
+                                ✕ Poista
+                              </ThemedText>
+                            </Pressable>
+                          </View>
                         </ThemedView>
                       );
                     })}
@@ -494,6 +508,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  itemFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   itemNameText: {
     flex: 1,
