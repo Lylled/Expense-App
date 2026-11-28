@@ -30,6 +30,9 @@ export default function AppTabs() {
           <TabTrigger name="categories" href="/categories" asChild>
             <TabButton>Luokat</TabButton>
           </TabTrigger>
+          <TabTrigger name="summary" href="/summary" asChild>
+            <TabButton>Koosteet</TabButton>
+          </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
             <TabButton>Explore</TabButton>
           </TabTrigger>

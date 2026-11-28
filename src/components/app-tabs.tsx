@@ -30,6 +30,11 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Icon sf="folder.fill" md="folder" />
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="summary">
+        <NativeTabs.Trigger.Label>Koosteet</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="chart.bar.fill" md="bar_chart" />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="explore">
         <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
