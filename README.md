@@ -25,17 +25,20 @@ Mobiilisovellus kuittikuvien perusteella tapahtuvaan kulutusseurantaan. Käyttä
 - Hierarkkisten luokkien ja alaluokkien luonti, muokkaus ja poisto, esimerkkiluokilla valmiiksi täytettynä uudelle käyttäjälle
 - Manuaalinen menon lisäys, muokkaus ja poisto; luokan valinta pudotusvalikolla (pääluokka → alaluokka)
 - Kuitin skannaus ja tekoälypohjainen jäsennys (kauppa, päivämäärä, tuotteet, hinnat), jokaisen rivin nimen/hinnan korjaaminen ja luokan valinta ennen tallennusta, ja jäsennetyn kuitin jokaisen rivin tallentaminen menoksi omaan luokkaansa
+- Kulutuskoosteet (Koosteet-välilehti): viikko/kuukausi/vuosi/mukautettu/koko aika, vertailu edelliseen jaksoon, luokkaerittely jota voi porautua (pääluokka → alaluokka), ja sama kooste skoopattuna mihin tahansa yksittäiseen luokkaan
+- Asetukset-välilehti: uloskirjautuminen, salasanan vaihto, tilin pysyvä poisto (Edge Function, kaskadoi kaikki käyttäjän datan), teeman valinta (vaalea/tumma/järjestelmä), ja valinta minne kuitin kuva tallennetaan kuvauksen jälkeen (ei tallenneta / sovelluksen muisti / puhelimen muisti)
 
 **Seuraavaksi** (tarkempi backlog [GitHub-issueissa](../../issues)):
 - Luokkaehdotukset kuitin riveille aiempien tallennusten perusteella
-- Kulutuksen yhteenvedot ja Excel-export
-- Tilin poisto, jaettu talous toisen käyttäjän kanssa, ja muu backlogissa listattu
+- Kulutuksen Excel/CSV-export
+- Jaettu talous toisen käyttäjän kanssa, ja muu backlogissa listattu
 
 ## Tiedossa olevat rajoitukset
 
 - Kuitin kuvaaminen vaatii verkkoyhteyden (tekoälykutsu), eikä toimi täysin offline kuten aiempi laitteella tehty tekstintunnistus.
 - Tekoälyjäsennys voi silti mennä harvoin pieleen esim. hyvin huonolaatuisella tai rypistyneellä kuitilla — siksi jokaisen rivin nimen, hinnan ja luokan voi tarkistaa ja korjata ennen tallennusta.
 - Natiivi Jetpack Compose -pudotusvalikko (Android) osoittautui epäluotettavaksi kosketukselle, kun ruudulla on monta samanlaista valikkoa yhtä aikaa (esim. yksi per kuitin rivi) — tällaisissa näkymissä käytetään sen sijaan tavallista React Nativen omaa Modal-ikkunaa, jossa on myös hakukenttä (ks. `src/components/category-search-picker.tsx`).
+- Kuitin kuvan tallennuspaikan voi valita Asetuksista, mutta tallennettua kuvaa ei vielä voi katsoa jälkikäteen yksittäisen menon tiedoista (tarkempi backlog [GitHub-issueissa](../../issues)).
 
 ## Kehitysympäristön pystytys
 
@@ -70,6 +73,11 @@ Kuitinlukua varten tarvitaan lisäksi `parse-receipt`-niminen Edge Function:
 1. Hae ilmainen Gemini API -avain osoitteesta [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 2. Luo Supabasen dashboardissa **Edge Functions → Deploy a new function**, nimeä se `parse-receipt` ja liitä sisällöksi tiedoston `supabase/functions/parse-receipt/index.ts` koodi (tai käytä Supabase CLI:tä: `supabase functions deploy parse-receipt`)
 3. Lisää funktiolle salaisuus **Edge Functions → Secrets**: `GEMINI_API_KEY` = hankittu avain
+
+Tilin poistoa (Asetukset-välilehti) varten tarvitaan toinen Edge Function, `delete-account`:
+
+1. Luo Supabasen dashboardissa **Edge Functions → Deploy a new function**, nimeä se `delete-account` ja liitä sisällöksi tiedoston `supabase/functions/delete-account/index.ts` koodi
+2. Ei vaadi erillistä salaisuutta — `SUPABASE_URL` ja `SUPABASE_SERVICE_ROLE_KEY` ovat valmiina jokaisen Edge Functionin käytössä
 
 ### Ajaminen
 

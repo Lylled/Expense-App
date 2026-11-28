@@ -21,9 +21,12 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import { usePersistedChoice } from '@/hooks/use-persisted-choice';
 import { useTheme } from '@/hooks/use-theme';
 import { groupByParent, type Category } from '@/lib/categories';
+import { describeFunctionError } from '@/lib/edge-functions';
 import { parseFinnishDate, todayAsFinnishDate } from '@/lib/expenses';
+import { RECEIPT_STORAGE_MODES, RECEIPT_STORAGE_STORAGE_KEY, saveReceiptPhoto } from '@/lib/receipt-storage';
 import { supabase } from '@/lib/supabase';
 
 type Status = 'idle' | 'scanning' | 'recognizing' | 'reviewing' | 'saving' | 'error';
@@ -63,45 +66,14 @@ function dedupeHistory(rows: { description: string | null; category_id: string }
   return result;
 }
 
-// supabase-js's own error.message for a failed Edge Function call is always
-// just "Edge Function returned a non-2xx status code" - the actual detail
-// (our function's own { error: "..." } body, or whatever Supabase's gateway
-// itself returned if the request never reached our function, e.g. a missing
-// auth header) is only reachable via error.context, the raw Response. Show
-// that raw body rather than assuming a shape, so a mismatch is visible
-// instead of silently falling back to the generic message again.
-async function describeFunctionError(error: unknown): Promise<string> {
-  // Duck-typed rather than `instanceof Response`: React Native's fetch
-  // polyfill produces a Response whose prototype chain doesn't match the
-  // global `Response` supabase-js's own fetch call sees, so `instanceof`
-  // silently fails here.
-  const context = (error as { context?: unknown } | null)?.context as
-    | { text?: () => Promise<string>; status?: number }
-    | undefined;
-
-  if (context && typeof context.text === 'function') {
-    try {
-      const bodyText = await context.text();
-      const status = typeof context.status === 'number' ? ` (HTTP ${context.status})` : '';
-      if (!bodyText) return `Tyhjä vastaus palvelimelta${status}`;
-      try {
-        const parsed = JSON.parse(bodyText) as { error?: unknown };
-        if (typeof parsed.error === 'string') return parsed.error;
-        return `${bodyText}${status}`;
-      } catch {
-        return `${bodyText}${status}`;
-      }
-    } catch {
-      // Body couldn't be read either - fall through to the generic message.
-    }
-  }
-
-  return error instanceof Error ? error.message : String(error);
-}
-
 export default function ReceiptScanScreen() {
   const { session } = useAuth();
   const theme = useTheme();
+  const [receiptStorageMode] = usePersistedChoice(
+    RECEIPT_STORAGE_STORAGE_KEY,
+    RECEIPT_STORAGE_MODES,
+    'none'
+  );
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -159,6 +131,10 @@ export default function ReceiptScanScreen() {
       const uri = result.assets[0].uri;
       setPhotoUri(uri);
       setStatus('recognizing');
+
+      // Kept independent of whether the AI read below succeeds - the user's
+      // storage preference is about keeping a copy of the photo itself.
+      saveReceiptPhoto(receiptStorageMode, uri).catch(() => {});
 
       const imageBase64 = await new File(uri).base64();
       const categoryOptions = flattenCategories(grouped);

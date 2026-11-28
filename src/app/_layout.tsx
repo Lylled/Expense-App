@@ -1,9 +1,10 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import type { PropsWithChildren } from 'react';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { ThemePreferenceProvider, useThemePreference } from '@/hooks/use-theme-preference';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,14 +27,22 @@ function RootNavigator() {
   );
 }
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+function NavigationTheme({ children }: PropsWithChildren) {
+  const { colorScheme } = useThemePreference();
   return (
-    <AuthProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AnimatedSplashOverlay />
-        <RootNavigator />
-      </ThemeProvider>
-    </AuthProvider>
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>{children}</ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemePreferenceProvider>
+      <AuthProvider>
+        <NavigationTheme>
+          <AnimatedSplashOverlay />
+          <RootNavigator />
+        </NavigationTheme>
+      </AuthProvider>
+    </ThemePreferenceProvider>
   );
 }

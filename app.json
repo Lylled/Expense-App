@@ -40,6 +40,13 @@
         {
           "cameraPermission": "Sovellus käyttää kameraa kuittien kuvaamiseen"
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Sovellus tallentaa kuitin kuvan puhelimen kuviin, jos valitset niin Asetukset-välilehdeltä",
+          "savePhotosPermission": "Sovellus tallentaa kuitin kuvan puhelimen kuviin, jos valitset niin Asetukset-välilehdeltä"
+        }
       ]
     ],
     "experiments": {
