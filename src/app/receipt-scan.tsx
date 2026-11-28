@@ -1,4 +1,4 @@
-import TextRecognition from '@react-native-ml-kit/text-recognition';
+import { File } from 'expo-file-system';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -17,13 +17,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CategoryPicker } from '@/components/category-picker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
 import { groupByParent, type Category } from '@/lib/categories';
 import { parseFinnishDate, todayAsFinnishDate } from '@/lib/expenses';
-import { parseReceipt } from '@/lib/parse-receipt';
 import { supabase } from '@/lib/supabase';
 
 type Status = 'idle' | 'scanning' | 'recognizing' | 'reviewing' | 'saving' | 'error';
@@ -35,13 +33,19 @@ type ReviewItem = {
   categoryId: string | null;
 };
 
+type AiParsedReceipt = {
+  storeName: string | null;
+  date: string | null;
+  items: { name: string; price: number }[];
+  total: number | null;
+};
+
 export default function ReceiptScanScreen() {
   const { session } = useAuth();
   const theme = useTheme();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [recognizedText, setRecognizedText] = useState('');
   const [storeName, setStoreName] = useState<string | null>(null);
   const [dateText, setDateText] = useState(todayAsFinnishDate());
   const [items, setItems] = useState<ReviewItem[]>([]);
@@ -65,7 +69,7 @@ export default function ReceiptScanScreen() {
       setStatus('scanning');
       // Opens the native scanner UI: it live-detects the receipt's edges and
       // returns an already cropped + perspective-corrected (deskewed) photo,
-      // so OCR always sees a flat rectangle regardless of the capture angle.
+      // so the model sees a flat rectangle regardless of the capture angle.
       const { scannedImages, status: scanStatus } = await DocumentScanner.scanDocument();
       if (scanStatus !== ScanDocumentResponseStatus.Success || !scannedImages?.length) {
         setStatus('idle');
@@ -75,14 +79,20 @@ export default function ReceiptScanScreen() {
       const uri = scannedImages[0];
       setPhotoUri(uri);
       setStatus('recognizing');
-      const result = await TextRecognition.recognize(uri);
-      setRecognizedText(result.text);
 
-      const parsed = parseReceipt(result);
-      setStoreName(parsed.storeName);
-      setDateText(parsed.date ?? todayAsFinnishDate());
+      const imageBase64 = await new File(uri).base64();
+      const { data, error } = await supabase.functions.invoke<AiParsedReceipt>('parse-receipt', {
+        body: { imageBase64, mimeType: 'image/jpeg' },
+      });
+
+      if (error || !data) {
+        throw new Error(error?.message ?? 'Kuitin lukeminen epäonnistui.');
+      }
+
+      setStoreName(data.storeName);
+      setDateText(data.date ?? todayAsFinnishDate());
       setItems(
-        parsed.items.map((item, index) => ({
+        data.items.map((item, index) => ({
           key: String(index),
           name: item.name,
           priceText: item.price.toFixed(2).replace('.', ','),
@@ -98,7 +108,6 @@ export default function ReceiptScanScreen() {
 
   function handleReset() {
     setPhotoUri(null);
-    setRecognizedText('');
     setStoreName(null);
     setDateText(todayAsFinnishDate());
     setItems([]);
@@ -182,8 +191,7 @@ export default function ReceiptScanScreen() {
           {closeButton}
           <ThemedText type="subtitle">Skannaa kuitti</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
-            Kuitinskannaus ja tekstintunnistus toimivat vain natiivissa Android- tai
-            iOS-kehitysversiossa, ei webissä.
+            Kuitinskannaus toimii vain natiivissa Android- tai iOS-kehitysversiossa, ei webissä.
           </ThemedText>
         </SafeAreaView>
       </ThemedView>
@@ -200,7 +208,7 @@ export default function ReceiptScanScreen() {
             <ThemedText type="subtitle">Skannaa kuitti</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
               Avaa skanneri, aseta kuitti kehyksen sisään ja ota kuva. Skanneri rajaa ja
-              suoristaa kuvan automaattisesti ennen tekstintunnistusta.
+              suoristaa kuvan automaattisesti, minkä jälkeen tekoäly lukee kuitin sisällön.
             </ThemedText>
             <Pressable
               style={[styles.button, { backgroundColor: theme.backgroundElement }]}
@@ -210,9 +218,7 @@ export default function ReceiptScanScreen() {
             </Pressable>
             {status === 'scanning' && <ActivityIndicator />}
             {status === 'error' && (
-              <ThemedText style={styles.centerText}>
-                Virhe tekstintunnistuksessa: {errorMessage}
-              </ThemedText>
+              <ThemedText style={styles.centerText}>Virhe: {errorMessage}</ThemedText>
             )}
           </>
         )}
@@ -221,11 +227,16 @@ export default function ReceiptScanScreen() {
           <ScrollView contentContainerStyle={styles.resultScroll}>
             <Image source={{ uri: photoUri }} style={styles.preview} contentFit="contain" />
 
-            {status === 'recognizing' && <ActivityIndicator />}
+            {status === 'recognizing' && (
+              <>
+                <ActivityIndicator />
+                <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
+                  Tekoäly lukee kuittia…
+                </ThemedText>
+              </>
+            )}
             {status === 'error' && (
-              <ThemedText style={styles.centerText}>
-                Virhe tekstintunnistuksessa: {errorMessage}
-              </ThemedText>
+              <ThemedText style={styles.centerText}>Virhe: {errorMessage}</ThemedText>
             )}
 
             {(status === 'reviewing' || status === 'saving') && (
@@ -288,12 +299,6 @@ export default function ReceiptScanScreen() {
                     {status === 'saving' ? 'Tallennetaan…' : 'Tallenna menot'}
                   </ThemedText>
                 </Pressable>
-
-                <Collapsible title="Raaka tunnistettu teksti">
-                  <ThemedText type="code" selectable>
-                    {recognizedText || '(tekstiä ei tunnistettu)'}
-                  </ThemedText>
-                </Collapsible>
 
                 <Pressable
                   style={[styles.button, { backgroundColor: theme.backgroundElement }]}
