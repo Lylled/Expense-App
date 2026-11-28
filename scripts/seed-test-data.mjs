@@ -25,10 +25,21 @@
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 
+// Windows editors/redirection often save plain-text files as UTF-16 (with a
+// byte-order mark), which garbles every line when read as UTF-8.
+function decodeEnvFile(buffer) {
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
+    return buffer.slice(2).toString('utf16le');
+  }
+  const text = buffer.toString('utf8');
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 function loadEnvLocal() {
   try {
-    const text = readFileSync(new URL('../.env.local', import.meta.url), 'utf8');
-    for (const line of text.split('\n')) {
+    const buffer = readFileSync(new URL('../.env.local', import.meta.url));
+    const text = decodeEnvFile(buffer);
+    for (const line of text.split(/\r?\n/)) {
       const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
       if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
     }
